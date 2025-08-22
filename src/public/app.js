@@ -51,6 +51,13 @@ function setupEventListeners() {
     document.getElementById('nextPage').addEventListener('click', () => changePage(1));
     document.getElementById('pageSize').addEventListener('change', changePageSize);
 
+    // Search functionality
+    document.getElementById('searchBtn').addEventListener('click', performSearch);
+    document.getElementById('clearSearchBtn').addEventListener('click', clearSearch);
+    document.getElementById('searchValue').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') performSearch();
+    });
+
     // Search and sort
     document.getElementById('searchBtn').addEventListener('click', performSearch);
     document.getElementById('clearSearchBtn').addEventListener('click', clearSearch);
@@ -782,6 +789,46 @@ function changePage(direction) {
 function changePageSize() {
     pageSize = parseInt(document.getElementById('pageSize').value);
     currentPage = 1;
+    loadTableData();
+}
+
+// Search and Sort functionality
+function performSearch() {
+    const searchColumn = document.getElementById('searchColumn').value;
+    const searchValue = document.getElementById('searchValue').value.trim();
+    
+    if (!searchColumn || !searchValue) {
+        showNotification('Please select a column and enter a search value', 'error');
+        return;
+    }
+    
+    currentSearchColumn = searchColumn;
+    currentSearchValue = searchValue;
+    currentPage = 1; // Reset to first page when searching
+    
+    loadTableData();
+}
+
+function clearSearch() {
+    document.getElementById('searchColumn').value = '';
+    document.getElementById('searchValue').value = '';
+    currentSearchColumn = null;
+    currentSearchValue = null;
+    currentPage = 1;
+    
+    loadTableData();
+}
+
+function sortByColumn(column) {
+    if (currentSortColumn === column) {
+        // Toggle sort direction
+        currentSortDirection = currentSortDirection === 'ASC' ? 'DESC' : 'ASC';
+    } else {
+        currentSortColumn = column;
+        currentSortDirection = 'ASC';
+    }
+    
+    currentPage = 1; // Reset to first page when sorting
     loadTableData();
 }
 

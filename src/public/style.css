@@ -340,6 +340,76 @@ header h1 {
     padding: 6px 10px;
     border: 1px solid #ced4da;
     border-radius: 4px;
+    font-size: 13px;
+}
+
+.search-controls input.search-active {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.sortable-header {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: 20px !important;
+}
+
+.sortable-header:hover {
+    background-color: #e9ecef !important;
+}
+
+.sort-indicator {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+}
+
+.sort-indicator.asc::after {
+    content: "▲";
+    color: #007bff;
+}
+
+.sort-indicator.desc::after {
+    content: "▼";
+    color: #007bff;
+}
+
+.search-info {
+    background-color: #d1ecf1;
+    color: #0c5460;
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    font-size: 14px;
+    border: 1px solid #bee5eb;
+}
+
+.search-info .clear-search {
+    margin-left: 10px;
+    color: #0c5460;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.search-info .clear-search:hover {
+    color: #062c33;
+}
+
+.search-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.search-controls select,
+.search-controls input {
+    padding: 6px 10px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
     font-size: 14px;
 }
 
