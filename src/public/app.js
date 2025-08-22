@@ -8,6 +8,10 @@ let currentPage = 1;
 let totalPages = 1;
 let pageSize = 100;
 let isConnected = false;
+let currentSortColumn = null;
+let currentSortDirection = 'ASC';
+let currentSearchColumn = null;
+let currentSearchValue = null;
 
 // DOM Elements
 const connectionForm = document.getElementById('connectionForm');
@@ -46,6 +50,13 @@ function setupEventListeners() {
     document.getElementById('prevPage').addEventListener('click', () => changePage(-1));
     document.getElementById('nextPage').addEventListener('click', () => changePage(1));
     document.getElementById('pageSize').addEventListener('change', changePageSize);
+
+    // Search and sort
+    document.getElementById('searchBtn').addEventListener('click', performSearch);
+    document.getElementById('clearSearchBtn').addEventListener('click', clearSearch);
+    document.getElementById('searchValue').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') performSearch();
+    });
 
     // Tab switching
     document.querySelectorAll('.tab-button').forEach(button => {
@@ -290,7 +301,11 @@ function loadTableData() {
         database: currentDatabase,
         table: currentTable,
         limit: pageSize,
-        offset: offset
+        offset: offset,
+        sortColumn: currentSortColumn,
+        sortDirection: currentSortDirection,
+        searchColumn: currentSearchColumn,
+        searchValue: currentSearchValue
     });
 }
 
@@ -579,18 +594,34 @@ function populateTableData(data) {
         return;
     }
     
-    // Create header
+    // Create header with sorting functionality
     const headerRow = document.createElement('tr');
     const columns = Object.keys(data.data[0]);
     
     columns.forEach(column => {
         const th = document.createElement('th');
+        th.className = 'sortable-header';
         th.textContent = column;
+        th.setAttribute('data-column', column);
+        
+        // Add sort indicator if this column is currently sorted
+        if (data.sortColumn === column) {
+            const indicator = document.createElement('span');
+            indicator.className = `sort-indicator ${data.sortDirection.toLowerCase()}`;
+            th.appendChild(indicator);
+        }
+        
+        // Add click handler for sorting
+        th.addEventListener('click', () => sortByColumn(column));
+        
         headerRow.appendChild(th);
     });
     
     thead.appendChild(headerRow);
     
+    // Update search column dropdown
+    updateSearchColumns(columns);
+
     // Create data rows
     data.data.forEach(row => {
         const tr = document.createElement('tr');
@@ -608,6 +639,107 @@ function populateTableData(data) {
         
         tbody.appendChild(tr);
     });
+    
+    // Show search info if search is active
+    updateSearchInfo(data);
+}
+
+function updateSearchColumns(columns) {
+    const searchColumnSelect = document.getElementById('searchColumn');
+    const currentValue = searchColumnSelect.value;
+    
+    searchColumnSelect.innerHTML = '<option value="">Search Column</option>';
+    
+    columns.forEach(column => {
+        const option = document.createElement('option');
+        option.value = column;
+        option.textContent = column;
+        searchColumnSelect.appendChild(option);
+    });
+    
+    if (currentValue && columns.includes(currentValue)) {
+        searchColumnSelect.value = currentValue;
+    }
+}
+
+function updateSearchInfo(data) {
+    // Remove existing search info
+    const existingInfo = document.querySelector('.search-info');
+    if (existingInfo) {
+        existingInfo.remove();
+    }
+    
+    // Add search info if search is active
+    if (data.searchColumn && data.searchValue) {
+        const searchInfo = document.createElement('div');
+        searchInfo.className = 'search-info';
+        searchInfo.textContent = `Showing results for "${data.searchValue}" in column "${data.searchColumn}" (${data.total} matches)`;
+        
+        const dataControls = document.querySelector('.data-controls');
+        dataControls.insertAdjacentElement('afterend', searchInfo);
+    }
+}
+
+function sortByColumn(column) {
+    if (currentSortColumn === column) {
+        // Toggle sort direction
+        currentSortDirection = currentSortDirection === 'ASC' ? 'DESC' : 'ASC';
+    } else {
+        // New column, default to ASC
+        currentSortColumn = column;
+        currentSortDirection = 'ASC';
+    }
+    
+    // Reset to first page when sorting
+    currentPage = 1;
+    loadTableData();
+}
+
+function performSearch() {
+    const searchColumn = document.getElementById('searchColumn').value;
+    const searchValue = document.getElementById('searchValue').value.trim();
+    
+    if (!searchColumn && searchValue) {
+        showNotification('Please select a column to search in', 'error');
+        return;
+    }
+    
+    if (searchColumn && !searchValue) {
+        showNotification('Please enter a search value', 'error');
+        return;
+    }
+    
+    currentSearchColumn = searchColumn || null;
+    currentSearchValue = searchValue || null;
+    currentPage = 1; // Reset to first page when searching
+    
+    // Update search input styling
+    const searchInput = document.getElementById('searchValue');
+    if (searchValue) {
+        searchInput.classList.add('search-active');
+    } else {
+        searchInput.classList.remove('search-active');
+    }
+    
+    loadTableData();
+}
+
+function clearSearch() {
+    document.getElementById('searchColumn').value = '';
+    document.getElementById('searchValue').value = '';
+    document.getElementById('searchValue').classList.remove('search-active');
+    
+    currentSearchColumn = null;
+    currentSearchValue = null;
+    currentPage = 1;
+    
+    // Remove search info
+    const existingInfo = document.querySelector('.search-info');
+    if (existingInfo) {
+        existingInfo.remove();
+    }
+    
+    loadTableData();
 }
 
 function populateTableStructure(structure) {

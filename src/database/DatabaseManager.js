@@ -73,7 +73,7 @@ class DatabaseManager {
         }
     }
 
-    async getTableData(databaseName, tableName, limit = 100, offset = 0) {
+    async getTableData(databaseName, tableName, limit = 100, offset = 0, sortColumn = null, sortDirection = 'ASC', searchColumn = null, searchValue = null) {
         if (!this.connection) {
             throw new Error('No database connection');
         }
@@ -84,20 +84,42 @@ class DatabaseManager {
             const escapedTable = this.connection.escapeId(tableName);
             const fullTableName = `${escapedDatabase}.${escapedTable}`;
             
-            // Get total count
-            const countQuery = `SELECT COUNT(*) as total FROM ${fullTableName}`;
+            // Build WHERE clause for search
+            let whereClause = '';
+            let countWhereClause = '';
+            if (searchColumn && searchValue) {
+                const escapedSearchColumn = this.connection.escapeId(searchColumn);
+                const escapedSearchValue = this.connection.escape(`%${searchValue}%`);
+                whereClause = ` WHERE ${escapedSearchColumn} LIKE ${escapedSearchValue}`;
+                countWhereClause = whereClause;
+            }
+            
+            // Build ORDER BY clause for sorting
+            let orderClause = '';
+            if (sortColumn) {
+                const escapedSortColumn = this.connection.escapeId(sortColumn);
+                const direction = sortDirection.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+                orderClause = ` ORDER BY ${escapedSortColumn} ${direction}`;
+            }
+            
+            // Get total count (with search filter if applied)
+            const countQuery = `SELECT COUNT(*) as total FROM ${fullTableName}${countWhereClause}`;
             const [countResult] = await this.connection.query(countQuery);
             const total = countResult[0].total;
             
-            // Get data with pagination - using query with escaped values
-            const dataQuery = `SELECT * FROM ${fullTableName} LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`;
+            // Get data with pagination, sorting, and search
+            const dataQuery = `SELECT * FROM ${fullTableName}${whereClause}${orderClause} LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`;
             const [rows] = await this.connection.query(dataQuery);
             
             return {
                 data: rows,
                 total: total,
                 limit: limit,
-                offset: offset
+                offset: offset,
+                sortColumn: sortColumn,
+                sortDirection: sortDirection,
+                searchColumn: searchColumn,
+                searchValue: searchValue
             };
         } catch (error) {
             throw new Error(`Failed to get table data: ${error.message}`);

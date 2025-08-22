@@ -317,12 +317,83 @@ header h1 {
     padding: 10px;
     background-color: #f8f9fa;
     border-radius: 4px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.data-actions {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.search-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.search-controls select,
+.search-controls input {
+    padding: 6px 10px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.search-controls input {
+    min-width: 150px;
 }
 
 .pagination-controls {
     display: flex;
     align-items: center;
     gap: 10px;
+    flex-wrap: wrap;
+}
+
+.sortable-header {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: 20px !important;
+}
+
+.sortable-header:hover {
+    background-color: #e9ecef;
+}
+
+.sort-indicator {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: #6c757d;
+}
+
+.sort-indicator.asc::after {
+    content: '▲';
+}
+
+.sort-indicator.desc::after {
+    content: '▼';
+}
+
+.search-active {
+    background-color: #e3f2fd;
+    border-color: #2196f3;
+}
+
+.search-info {
+    background-color: #d1ecf1;
+    color: #0c5460;
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    font-size: 14px;
 }
 
 .table-container {
@@ -513,11 +584,28 @@ table tr:hover {
     
     .data-controls {
         flex-direction: column;
-        gap: 10px;
+        align-items: stretch;
+        gap: 15px;
+    }
+    
+    .data-actions {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .search-controls {
+        justify-content: stretch;
+    }
+    
+    .search-controls select,
+    .search-controls input {
+        flex: 1;
+        min-width: auto;
     }
     
     .pagination-controls {
         justify-content: center;
+        flex-wrap: wrap;
     }
     
     .form-row {
@@ -542,5 +630,13 @@ table tr:hover {
     .tab-button {
         flex: 1;
         min-width: 80px;
+    }
+    
+    .table-container {
+        overflow-x: auto;
+    }
+    
+    .sortable-header {
+        min-width: 100px;
     }
 }
