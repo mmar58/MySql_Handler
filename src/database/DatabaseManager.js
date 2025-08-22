@@ -322,6 +322,71 @@ class DatabaseManager {
             throw new Error(`Failed to drop table: ${error.message}`);
         }
     }
+
+    async alterTable(databaseName, tableName, alterQuery) {
+        if (!this.connection) {
+            throw new Error('No database connection');
+        }
+
+        try {
+            // Create database-specific connection
+            const dbConnection = await mysql.createConnection({
+                ...this.credentials,
+                database: databaseName
+            });
+            
+            try {
+                await dbConnection.query(alterQuery);
+            } finally {
+                await dbConnection.end();
+            }
+        } catch (error) {
+            throw new Error(`Failed to alter table: ${error.message}`);
+        }
+    }
+
+    async getTableIndexes(databaseName, tableName) {
+        if (!this.connection) {
+            throw new Error('No database connection');
+        }
+
+        try {
+            const escapedDatabase = this.connection.escapeId(databaseName);
+            const escapedTable = this.connection.escapeId(tableName);
+            const [rows] = await this.connection.query(`SHOW INDEX FROM ${escapedDatabase}.${escapedTable}`);
+            return rows;
+        } catch (error) {
+            throw new Error(`Failed to get table indexes: ${error.message}`);
+        }
+    }
+
+    async getTableConstraints(databaseName, tableName) {
+        if (!this.connection) {
+            throw new Error('No database connection');
+        }
+
+        try {
+            const query = `
+                SELECT 
+                    CONSTRAINT_NAME,
+                    CONSTRAINT_TYPE,
+                    COLUMN_NAME,
+                    REFERENCED_TABLE_NAME,
+                    REFERENCED_COLUMN_NAME
+                FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
+                JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc 
+                    ON kcu.CONSTRAINT_NAME = tc.CONSTRAINT_NAME 
+                    AND kcu.TABLE_SCHEMA = tc.TABLE_SCHEMA
+                WHERE kcu.TABLE_SCHEMA = ? AND kcu.TABLE_NAME = ?
+                ORDER BY kcu.ORDINAL_POSITION
+            `;
+            
+            const [rows] = await this.connection.query(query, [databaseName, tableName]);
+            return rows;
+        } catch (error) {
+            throw new Error(`Failed to get table constraints: ${error.message}`);
+        }
+    }
 }
 
 module.exports = DatabaseManager;

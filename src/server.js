@@ -188,6 +188,70 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Alter table
+    socket.on('alter_table', async ({ database, table, alterQuery }) => {
+        const dbManager = activeConnections.get(socket.id);
+        if (!dbManager) {
+            socket.emit('error', { message: 'No active database connection' });
+            return;
+        }
+
+        try {
+            await dbManager.alterTable(database, table, alterQuery);
+            socket.emit('table_altered', { message: `Table '${table}' altered successfully` });
+        } catch (error) {
+            socket.emit('error', { message: error.message });
+        }
+    });
+
+    // Get table indexes
+    socket.on('get_table_indexes', async ({ database, table }) => {
+        const dbManager = activeConnections.get(socket.id);
+        if (!dbManager) {
+            socket.emit('error', { message: 'No active database connection' });
+            return;
+        }
+
+        try {
+            const indexes = await dbManager.getTableIndexes(database, table);
+            socket.emit('table_indexes', { database, table, indexes });
+        } catch (error) {
+            socket.emit('error', { message: error.message });
+        }
+    });
+
+    // Get table constraints
+    socket.on('get_table_constraints', async ({ database, table }) => {
+        const dbManager = activeConnections.get(socket.id);
+        if (!dbManager) {
+            socket.emit('error', { message: 'No active database connection' });
+            return;
+        }
+
+        try {
+            const constraints = await dbManager.getTableConstraints(database, table);
+            socket.emit('table_constraints', { database, table, constraints });
+        } catch (error) {
+            socket.emit('error', { message: error.message });
+        }
+    });
+
+    // Drop table
+    socket.on('drop_table', async ({ database, table }) => {
+        const dbManager = activeConnections.get(socket.id);
+        if (!dbManager) {
+            socket.emit('error', { message: 'No active database connection' });
+            return;
+        }
+
+        try {
+            await dbManager.dropTable(database, table);
+            socket.emit('table_dropped', { message: `Table '${table}' dropped successfully` });
+        } catch (error) {
+            socket.emit('error', { message: error.message });
+        }
+    });
+
     // Handle client disconnect
     socket.on('disconnect', async () => {
         console.log('User disconnected:', socket.id);

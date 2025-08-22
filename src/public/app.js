@@ -19,6 +19,7 @@ const databaseList = document.getElementById('databaseList');
 const tableList = document.getElementById('tableList');
 const dataTable = document.getElementById('dataTable');
 const structureTable = document.getElementById('structureTable');
+const indexesTable = document.getElementById('indexesTable');
 const selectedTableSpan = document.getElementById('selectedTable');
 const pageInfo = document.getElementById('pageInfo');
 const sqlQuery = document.getElementById('sqlQuery');
@@ -60,6 +61,14 @@ function setupEventListeners() {
 
     // Create database form
     document.getElementById('createDatabaseForm').addEventListener('submit', createDatabase);
+
+    // Alter table forms
+    document.getElementById('addColumnForm').addEventListener('submit', addColumn);
+    document.getElementById('dropColumnForm').addEventListener('submit', dropColumn);
+    document.getElementById('modifyColumnForm').addEventListener('submit', modifyColumn);
+    document.getElementById('addIndexForm').addEventListener('submit', addIndex);
+    document.getElementById('customAlterForm').addEventListener('submit', executeCustomAlter);
+    document.getElementById('dropTableBtn').addEventListener('click', dropTable);
 }
 
 function setupSocketListeners() {
@@ -115,6 +124,23 @@ function setupSocketListeners() {
     socket.on('database_dropped', (data) => {
         showNotification(data.message, 'success');
         loadDatabases();
+    });
+
+    socket.on('table_altered', (data) => {
+        showNotification(data.message, 'success');
+        loadTableStructure();
+        loadTableIndexes();
+        loadTables(); // Refresh tables list in case table was renamed
+    });
+
+    socket.on('table_indexes', (data) => {
+        populateTableIndexes(data.indexes);
+    });
+
+    socket.on('table_dropped', (data) => {
+        showNotification(data.message, 'success');
+        clearTableData();
+        loadTables(); // Refresh tables list
     });
 
     socket.on('error', (data) => {
@@ -249,9 +275,11 @@ function selectTable(table, element) {
     // Reset pagination
     currentPage = 1;
     
-    // Load table data and structure
+    // Load table data, structure, and indexes
     loadTableData();
     loadTableStructure();
+    loadTableIndexes();
+    populateAlterFormColumns();
 }
 
 function loadTableData() {
@@ -270,6 +298,253 @@ function loadTableStructure() {
     if (!currentDatabase || !currentTable) return;
     
     socket.emit('get_table_structure', {
+        database: currentDatabase,
+        table: currentTable
+    });
+}
+
+function loadTableIndexes() {
+    if (!currentDatabase || !currentTable) return;
+    
+    socket.emit('get_table_indexes', {
+        database: currentDatabase,
+        table: currentTable
+    });
+}
+
+function populateTableIndexes(indexes) {
+    const tbody = indexesTable.querySelector('tbody');
+    tbody.innerHTML = '';
+    
+    indexes.forEach(index => {
+        const tr = document.createElement('tr');
+        
+        const keyName = document.createElement('td');
+        keyName.textContent = index.Key_name;
+        tr.appendChild(keyName);
+        
+        const column = document.createElement('td');
+        column.textContent = index.Column_name;
+        tr.appendChild(column);
+        
+        const unique = document.createElement('td');
+        unique.textContent = index.Non_unique === 0 ? 'Yes' : 'No';
+        tr.appendChild(unique);
+        
+        const type = document.createElement('td');
+        type.textContent = index.Index_type;
+        tr.appendChild(type);
+        
+        const cardinality = document.createElement('td');
+        cardinality.textContent = index.Cardinality || '';
+        tr.appendChild(cardinality);
+        
+        tbody.appendChild(tr);
+    });
+}
+
+function populateAlterFormColumns() {
+    if (!currentDatabase || !currentTable) return;
+    
+    // Get current table structure
+    socket.emit('get_table_structure', {
+        database: currentDatabase,
+        table: currentTable
+    });
+}
+
+function updateAlterFormColumns(structure) {
+    const dropColumnSelect = document.getElementById('dropColumnName');
+    const modifyColumnSelect = document.getElementById('modifyColumnName');
+    const indexColumnsSelect = document.getElementById('newIndexColumns');
+    
+    // Clear existing options
+    dropColumnSelect.innerHTML = '<option value="">Select Column</option>';
+    modifyColumnSelect.innerHTML = '<option value="">Select Column</option>';
+    indexColumnsSelect.innerHTML = '';
+    
+    structure.forEach(field => {
+        const dropOption = document.createElement('option');
+        dropOption.value = field.Field;
+        dropOption.textContent = field.Field;
+        dropColumnSelect.appendChild(dropOption);
+        
+        const modifyOption = document.createElement('option');
+        modifyOption.value = field.Field;
+        modifyOption.textContent = `${field.Field} (${field.Type})`;
+        modifyColumnSelect.appendChild(modifyOption);
+        
+        const indexOption = document.createElement('option');
+        indexOption.value = field.Field;
+        indexOption.textContent = field.Field;
+        indexColumnsSelect.appendChild(indexOption);
+    });
+}
+
+function addColumn(e) {
+    e.preventDefault();
+    
+    const columnName = document.getElementById('newColumnName').value.trim();
+    const columnType = document.getElementById('newColumnType').value;
+    const allowNull = document.getElementById('newColumnNull').checked;
+    const defaultValue = document.getElementById('newColumnDefault').value.trim();
+    const position = document.getElementById('newColumnPosition').value;
+    
+    if (!columnName || !columnType) {
+        showNotification('Please fill in column name and type', 'error');
+        return;
+    }
+    
+    let alterQuery = `ALTER TABLE \`${currentTable}\` ADD COLUMN \`${columnName}\` ${columnType}`;
+    
+    if (!allowNull) {
+        alterQuery += ' NOT NULL';
+    }
+    
+    if (defaultValue) {
+        alterQuery += ` DEFAULT '${defaultValue}'`;
+    }
+    
+    if (position === 'FIRST') {
+        alterQuery += ' FIRST';
+    }
+    
+    socket.emit('alter_table', {
+        database: currentDatabase,
+        table: currentTable,
+        alterQuery: alterQuery
+    });
+    
+    // Clear form
+    document.getElementById('addColumnForm').reset();
+}
+
+function dropColumn(e) {
+    e.preventDefault();
+    
+    const columnName = document.getElementById('dropColumnName').value;
+    
+    if (!columnName) {
+        showNotification('Please select a column to drop', 'error');
+        return;
+    }
+    
+    if (!confirm(`Are you sure you want to drop column '${columnName}'? This action cannot be undone.`)) {
+        return;
+    }
+    
+    const alterQuery = `ALTER TABLE \`${currentTable}\` DROP COLUMN \`${columnName}\``;
+    
+    socket.emit('alter_table', {
+        database: currentDatabase,
+        table: currentTable,
+        alterQuery: alterQuery
+    });
+    
+    // Clear form
+    document.getElementById('dropColumnForm').reset();
+}
+
+function modifyColumn(e) {
+    e.preventDefault();
+    
+    const columnName = document.getElementById('modifyColumnName').value;
+    const columnType = document.getElementById('modifyColumnType').value;
+    const allowNull = document.getElementById('modifyColumnNull').checked;
+    const defaultValue = document.getElementById('modifyColumnDefault').value.trim();
+    
+    if (!columnName || !columnType) {
+        showNotification('Please select column and specify new type', 'error');
+        return;
+    }
+    
+    let alterQuery = `ALTER TABLE \`${currentTable}\` MODIFY COLUMN \`${columnName}\` ${columnType}`;
+    
+    if (!allowNull) {
+        alterQuery += ' NOT NULL';
+    }
+    
+    if (defaultValue) {
+        alterQuery += ` DEFAULT '${defaultValue}'`;
+    }
+    
+    socket.emit('alter_table', {
+        database: currentDatabase,
+        table: currentTable,
+        alterQuery: alterQuery
+    });
+    
+    // Clear form
+    document.getElementById('modifyColumnForm').reset();
+}
+
+function addIndex(e) {
+    e.preventDefault();
+    
+    const indexName = document.getElementById('newIndexName').value.trim();
+    const selectedColumns = Array.from(document.getElementById('newIndexColumns').selectedOptions)
+        .map(option => option.value);
+    const indexType = document.getElementById('newIndexType').value;
+    
+    if (!indexName || selectedColumns.length === 0) {
+        showNotification('Please specify index name and select columns', 'error');
+        return;
+    }
+    
+    const columnsStr = selectedColumns.map(col => `\`${col}\``).join(', ');
+    let alterQuery;
+    
+    if (indexType === 'UNIQUE') {
+        alterQuery = `ALTER TABLE \`${currentTable}\` ADD UNIQUE KEY \`${indexName}\` (${columnsStr})`;
+    } else if (indexType === 'FULLTEXT') {
+        alterQuery = `ALTER TABLE \`${currentTable}\` ADD FULLTEXT KEY \`${indexName}\` (${columnsStr})`;
+    } else {
+        alterQuery = `ALTER TABLE \`${currentTable}\` ADD KEY \`${indexName}\` (${columnsStr})`;
+    }
+    
+    socket.emit('alter_table', {
+        database: currentDatabase,
+        table: currentTable,
+        alterQuery: alterQuery
+    });
+    
+    // Clear form
+    document.getElementById('addIndexForm').reset();
+}
+
+function executeCustomAlter(e) {
+    e.preventDefault();
+    
+    const customQuery = document.getElementById('customAlterQuery').value.trim();
+    
+    if (!customQuery) {
+        showNotification('Please enter an ALTER statement', 'error');
+        return;
+    }
+    
+    socket.emit('alter_table', {
+        database: currentDatabase,
+        table: currentTable,
+        alterQuery: customQuery
+    });
+    
+    // Clear form
+    document.getElementById('customAlterForm').reset();
+}
+
+function dropTable() {
+    if (!currentTable || !currentDatabase) {
+        showNotification('No table selected', 'error');
+        return;
+    }
+    
+    const confirmation = prompt(`Type '${currentTable}' to confirm dropping this table:`);
+    if (confirmation !== currentTable) {
+        showNotification('Table name confirmation failed', 'error');
+        return;
+    }
+    
+    socket.emit('drop_table', {
         database: currentDatabase,
         table: currentTable
     });
@@ -351,6 +626,9 @@ function populateTableStructure(structure) {
         
         tbody.appendChild(tr);
     });
+    
+    // Update alter form columns
+    updateAlterFormColumns(structure);
 }
 
 function updatePagination(data) {

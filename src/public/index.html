@@ -67,6 +67,8 @@
                 <div class="tabs">
                     <button class="tab-button active" data-tab="data">Data</button>
                     <button class="tab-button" data-tab="structure">Structure</button>
+                    <button class="tab-button" data-tab="indexes">Indexes</button>
+                    <button class="tab-button" data-tab="alter">Alter Table</button>
                     <button class="tab-button" data-tab="query">SQL Query</button>
                 </div>
 
@@ -96,7 +98,12 @@
 
                 <!-- Structure Tab -->
                 <div class="tab-content" id="structureTab">
-                    <h3>Table Structure</h3>
+                    <div class="structure-controls">
+                        <h3>Table Structure</h3>
+                        <div class="structure-buttons">
+                            <button id="dropTableBtn" class="btn btn-danger btn-small">Drop Table</button>
+                        </div>
+                    </div>
                     <div class="table-container">
                         <table id="structureTable">
                             <thead>
@@ -111,6 +118,187 @@
                             </thead>
                             <tbody></tbody>
                         </table>
+                    </div>
+                </div>
+
+                <!-- Indexes Tab -->
+                <div class="tab-content" id="indexesTab">
+                    <h3>Table Indexes</h3>
+                    <div class="table-container">
+                        <table id="indexesTable">
+                            <thead>
+                                <tr>
+                                    <th>Key Name</th>
+                                    <th>Column</th>
+                                    <th>Unique</th>
+                                    <th>Type</th>
+                                    <th>Cardinality</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Alter Table Tab -->
+                <div class="tab-content" id="alterTab">
+                    <h3>Alter Table Structure</h3>
+                    <div class="alter-sections">
+                        <!-- Add Column -->
+                        <div class="alter-section">
+                            <h4>Add Column</h4>
+                            <form id="addColumnForm" class="alter-form">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Column Name:</label>
+                                        <input type="text" id="newColumnName" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Data Type:</label>
+                                        <select id="newColumnType" required>
+                                            <option value="">Select Type</option>
+                                            <option value="INT">INT</option>
+                                            <option value="BIGINT">BIGINT</option>
+                                            <option value="VARCHAR(255)">VARCHAR(255)</option>
+                                            <option value="TEXT">TEXT</option>
+                                            <option value="DATE">DATE</option>
+                                            <option value="DATETIME">DATETIME</option>
+                                            <option value="TIMESTAMP">TIMESTAMP</option>
+                                            <option value="DECIMAL(10,2)">DECIMAL(10,2)</option>
+                                            <option value="BOOLEAN">BOOLEAN</option>
+                                            <option value="JSON">JSON</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>
+                                            <input type="checkbox" id="newColumnNull"> Allow NULL
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Default Value:</label>
+                                        <input type="text" id="newColumnDefault" placeholder="Leave empty for no default">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Position:</label>
+                                        <select id="newColumnPosition">
+                                            <option value="LAST">Last</option>
+                                            <option value="FIRST">First</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <button type="submit" class="btn btn-primary">Add Column</button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Drop Column -->
+                        <div class="alter-section">
+                            <h4>Drop Column</h4>
+                            <form id="dropColumnForm" class="alter-form">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Column to Drop:</label>
+                                        <select id="dropColumnName" required>
+                                            <option value="">Select Column</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <button type="submit" class="btn btn-danger">Drop Column</button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Modify Column -->
+                        <div class="alter-section">
+                            <h4>Modify Column</h4>
+                            <form id="modifyColumnForm" class="alter-form">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Column to Modify:</label>
+                                        <select id="modifyColumnName" required>
+                                            <option value="">Select Column</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>New Data Type:</label>
+                                        <select id="modifyColumnType" required>
+                                            <option value="">Select Type</option>
+                                            <option value="INT">INT</option>
+                                            <option value="BIGINT">BIGINT</option>
+                                            <option value="VARCHAR(255)">VARCHAR(255)</option>
+                                            <option value="TEXT">TEXT</option>
+                                            <option value="DATE">DATE</option>
+                                            <option value="DATETIME">DATETIME</option>
+                                            <option value="TIMESTAMP">TIMESTAMP</option>
+                                            <option value="DECIMAL(10,2)">DECIMAL(10,2)</option>
+                                            <option value="BOOLEAN">BOOLEAN</option>
+                                            <option value="JSON">JSON</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>
+                                            <input type="checkbox" id="modifyColumnNull"> Allow NULL
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Default Value:</label>
+                                        <input type="text" id="modifyColumnDefault" placeholder="Leave empty for no default">
+                                    </div>
+                                    <div class="form-group">
+                                        <button type="submit" class="btn btn-primary">Modify Column</button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Add Index -->
+                        <div class="alter-section">
+                            <h4>Add Index</h4>
+                            <form id="addIndexForm" class="alter-form">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Index Name:</label>
+                                        <input type="text" id="newIndexName" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Column(s):</label>
+                                        <select id="newIndexColumns" multiple required>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Index Type:</label>
+                                        <select id="newIndexType" required>
+                                            <option value="INDEX">INDEX</option>
+                                            <option value="UNIQUE">UNIQUE</option>
+                                            <option value="FULLTEXT">FULLTEXT</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <button type="submit" class="btn btn-primary">Add Index</button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Custom ALTER Query -->
+                        <div class="alter-section">
+                            <h4>Custom ALTER Statement</h4>
+                            <form id="customAlterForm" class="alter-form">
+                                <div class="form-group">
+                                    <label>ALTER TABLE Statement:</label>
+                                    <textarea id="customAlterQuery" placeholder="ALTER TABLE table_name ADD COLUMN ..." rows="3"></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <button type="submit" class="btn btn-primary">Execute ALTER</button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
 
