@@ -296,6 +296,20 @@ table tr:hover {
     color: #2c3e50;
 }
 
+.statement-result {
+    margin-bottom: 20px;
+    padding: 15px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    background-color: #f8f9fa;
+}
+
+.statement-result h4 {
+    margin-bottom: 10px;
+    color: #495057;
+    font-size: 14px;
+}
+
 #queryResults {
     background-color: #f8f9fa;
     padding: 15px;

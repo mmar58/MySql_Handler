@@ -411,31 +411,71 @@ function displayQueryResult(data) {
     let html = `<div class="query-info"><strong>Query:</strong> ${query}</div>`;
     
     if (result.type === 'SELECT') {
-        if (result.data.length === 0) {
-            html += '<p>No results found.</p>';
+        if (result.multipleStatements) {
+            // Handle multiple SELECT statements
+            html += `<p><strong>Multiple statements executed:</strong> ${result.data.length}</p>`;
+            html += `<p><strong>Total rows returned:</strong> ${result.rowCount}</p>`;
+            
+            result.data.forEach((statementResult, index) => {
+                html += `<div class="statement-result">`;
+                html += `<h4>Statement ${index + 1}: ${statementResult.statement}</h4>`;
+                
+                if (statementResult.data.length === 0) {
+                    html += '<p>No results found.</p>';
+                } else {
+                    html += `<p><strong>Rows:</strong> ${statementResult.rowCount}</p>`;
+                    html += '<div class="table-container"><table>';
+                    
+                    // Header
+                    const columns = Object.keys(statementResult.data[0]);
+                    html += '<thead><tr>';
+                    columns.forEach(col => {
+                        html += `<th>${col}</th>`;
+                    });
+                    html += '</tr></thead>';
+                    
+                    // Data
+                    html += '<tbody>';
+                    statementResult.data.forEach(row => {
+                        html += '<tr>';
+                        columns.forEach(col => {
+                            const value = row[col];
+                            html += `<td>${value === null ? '<em>NULL</em>' : value}</td>`;
+                        });
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table></div>';
+                }
+                html += `</div>`;
+            });
         } else {
-            html += `<p><strong>Rows returned:</strong> ${result.rowCount}</p>`;
-            html += '<div class="table-container"><table>';
-            
-            // Header
-            const columns = Object.keys(result.data[0]);
-            html += '<thead><tr>';
-            columns.forEach(col => {
-                html += `<th>${col}</th>`;
-            });
-            html += '</tr></thead>';
-            
-            // Data
-            html += '<tbody>';
-            result.data.forEach(row => {
-                html += '<tr>';
+            // Handle single SELECT statement
+            if (result.data.length === 0) {
+                html += '<p>No results found.</p>';
+            } else {
+                html += `<p><strong>Rows returned:</strong> ${result.rowCount}</p>`;
+                html += '<div class="table-container"><table>';
+                
+                // Header
+                const columns = Object.keys(result.data[0]);
+                html += '<thead><tr>';
                 columns.forEach(col => {
-                    const value = row[col];
-                    html += `<td>${value === null ? '<em>NULL</em>' : value}</td>`;
+                    html += `<th>${col}</th>`;
                 });
-                html += '</tr>';
-            });
-            html += '</tbody></table></div>';
+                html += '</tr></thead>';
+                
+                // Data
+                html += '<tbody>';
+                result.data.forEach(row => {
+                    html += '<tr>';
+                    columns.forEach(col => {
+                        const value = row[col];
+                        html += `<td>${value === null ? '<em>NULL</em>' : value}</td>`;
+                    });
+                    html += '</tr>';
+                });
+                html += '</tbody></table></div>';
+            }
         }
     } else {
         html += `<p><strong>Affected rows:</strong> ${result.affectedRows}</p>`;

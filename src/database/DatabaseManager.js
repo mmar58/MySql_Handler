@@ -7,8 +7,7 @@ class DatabaseManager {
             port: credentials.port || 3306,
             user: credentials.user,
             password: credentials.password,
-            connectTimeout: 60000,
-            acquireTimeout: 60000
+            connectTimeout: 60000
         };
         this.connection = null;
     }
@@ -116,24 +115,130 @@ class DatabaseManager {
             // Handle special cases for queries that need database context
             const upperQuery = query.toUpperCase().trim();
             
-            if (databaseName && upperQuery.startsWith('SHOW TABLES')) {
-                const escapedDatabase = this.connection.escapeId(databaseName);
-                finalQuery = `SHOW TABLES FROM ${escapedDatabase}`;
-            } else if (upperQuery.startsWith('USE ')) {
+            if (upperQuery.startsWith('USE ')) {
                 // Handle USE statements by extracting the database name
                 const dbMatch = query.match(/USE\s+`?(\w+)`?/i);
                 if (dbMatch) {
-                    // We can't execute USE with prepared statements, so we'll just return success
-                    return {
-                        type: 'MODIFY',
-                        affectedRows: 0,
-                        insertId: null,
-                        message: `Database changed to '${dbMatch[1]}'`
-                    };
+                    // For USE statements, we'll create a new connection with the database specified
+                    try {
+                        const testConnection = await mysql.createConnection({
+                            ...this.credentials,
+                            database: dbMatch[1]
+                        });
+                        await testConnection.end();
+                        return {
+                            type: 'MODIFY',
+                            affectedRows: 0,
+                            insertId: null,
+                            message: `Database changed to '${dbMatch[1]}'`
+                        };
+                    } catch (error) {
+                        throw new Error(`Cannot use database '${dbMatch[1]}': ${error.message}`);
+                    }
                 }
             }
             
-            // Use query method instead of execute for better compatibility
+            // Check if query contains multiple statements (separated by semicolons)
+            const statements = finalQuery.split(';').map(stmt => stmt.trim()).filter(stmt => stmt.length > 0);
+            
+            if (statements.length > 1) {
+                // Handle multiple statements
+                let totalAffectedRows = 0;
+                let results = [];
+                let lastInsertId = null;
+                
+                // Create database-specific connection if needed
+                const execConnection = databaseName ? 
+                    await mysql.createConnection({
+                        ...this.credentials,
+                        database: databaseName,
+                        multipleStatements: true
+                    }) : this.connection;
+                
+                try {
+                    for (const statement of statements) {
+                        const [result] = await execConnection.query(statement);
+                        
+                        if (statement.trim().toUpperCase().startsWith('SELECT') || 
+                            statement.trim().toUpperCase().startsWith('SHOW') ||
+                            statement.trim().toUpperCase().startsWith('DESCRIBE') ||
+                            statement.trim().toUpperCase().startsWith('EXPLAIN')) {
+                            results.push({
+                                statement: statement,
+                                data: result,
+                                rowCount: result.length
+                            });
+                        } else {
+                            totalAffectedRows += result.affectedRows || 0;
+                            if (result.insertId) {
+                                lastInsertId = result.insertId;
+                            }
+                        }
+                    }
+                    
+                    if (results.length > 0) {
+                        return {
+                            type: 'SELECT',
+                            data: results,
+                            rowCount: results.reduce((total, r) => total + r.rowCount, 0),
+                            multipleStatements: true
+                        };
+                    } else {
+                        return {
+                            type: 'MODIFY',
+                            affectedRows: totalAffectedRows,
+                            insertId: lastInsertId,
+                            message: `${statements.length} statements executed successfully`
+                        };
+                    }
+                } finally {
+                    if (execConnection !== this.connection) {
+                        await execConnection.end();
+                    }
+                }
+            }
+            
+            // Single statement execution
+            if (databaseName) {
+                if (upperQuery.startsWith('SHOW TABLES')) {
+                    const escapedDatabase = this.connection.escapeId(databaseName);
+                    finalQuery = `SHOW TABLES FROM ${escapedDatabase}`;
+                } else {
+                    // For other queries, we need to execute them with database context
+                    // Create a temporary connection with the database specified
+                    const dbConnection = await mysql.createConnection({
+                        ...this.credentials,
+                        database: databaseName
+                    });
+                    
+                    try {
+                        const [result] = await dbConnection.query(finalQuery);
+                        
+                        // Handle different query types
+                        if (finalQuery.trim().toUpperCase().startsWith('SELECT') || 
+                            finalQuery.trim().toUpperCase().startsWith('SHOW') ||
+                            finalQuery.trim().toUpperCase().startsWith('DESCRIBE') ||
+                            finalQuery.trim().toUpperCase().startsWith('EXPLAIN')) {
+                            return {
+                                type: 'SELECT',
+                                data: result,
+                                rowCount: result.length
+                            };
+                        } else {
+                            return {
+                                type: 'MODIFY',
+                                affectedRows: result.affectedRows || 0,
+                                insertId: result.insertId || null,
+                                message: 'Query executed successfully'
+                            };
+                        }
+                    } finally {
+                        await dbConnection.end();
+                    }
+                }
+            }
+            
+            // Execute query without database context (for queries that don't need it)
             const [result] = await this.connection.query(finalQuery);
             
             // Handle different query types
