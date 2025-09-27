@@ -12,6 +12,7 @@ let currentSortColumn = null;
 let currentSortDirection = 'ASC';
 let currentSearchColumn = null;
 let currentSearchValue = null;
+let currentCredentials = null;
 
 // DOM Elements
 const connectionForm = document.getElementById('connectionForm');
@@ -19,6 +20,7 @@ const connectionPanel = document.getElementById('connectionPanel');
 const mainInterface = document.getElementById('mainInterface');
 const connectionStatus = document.getElementById('connectionStatus');
 const disconnectBtn = document.getElementById('disconnectBtn');
+const logoutBtn = document.getElementById('logoutBtn');
 const databaseList = document.getElementById('databaseList');
 const tableList = document.getElementById('tableList');
 const dataTable = document.getElementById('dataTable');
@@ -34,12 +36,14 @@ const queryDatabase = document.getElementById('queryDatabase');
 document.addEventListener('DOMContentLoaded', function() {
     setupEventListeners();
     setupSocketListeners();
+    restoreSessionCredentials();
 });
 
 function setupEventListeners() {
     // Connection form
     connectionForm.addEventListener('submit', handleConnection);
     disconnectBtn.addEventListener('click', handleDisconnection);
+    logoutBtn.addEventListener('click', handleLogout);
 
     // Database operations
     document.getElementById('refreshDatabases').addEventListener('click', loadDatabases);
@@ -96,6 +100,18 @@ function setupSocketListeners() {
         showNotification('Connected to database successfully!', 'success');
         showMainInterface();
         loadDatabases();
+        
+        // Store credentials in session
+        if (currentCredentials) {
+            fetch('/store-credentials', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: currentCredentials.user,
+                    password: currentCredentials.password
+                })
+            });
+        }
     });
 
     socket.on('connection_error', (data) => {
@@ -168,7 +184,6 @@ function setupSocketListeners() {
 
 function handleConnection(e) {
     e.preventDefault();
-    
     const formData = new FormData(connectionForm);
     const credentials = {
         host: formData.get('host'),
@@ -176,7 +191,7 @@ function handleConnection(e) {
         user: formData.get('user'),
         password: formData.get('password')
     };
-
+    currentCredentials = credentials;
     socket.emit('connect_database', credentials);
     showNotification('Connecting to database...', 'info');
 }
@@ -193,10 +208,12 @@ function updateConnectionStatus(connected) {
         indicator.className = 'status-indicator connected';
         text.textContent = 'Connected';
         disconnectBtn.style.display = 'inline-block';
+        logoutBtn.style.display = 'inline-block';
     } else {
         indicator.className = 'status-indicator disconnected';
         text.textContent = 'Disconnected';
         disconnectBtn.style.display = 'none';
+        logoutBtn.style.display = 'none';
     }
 }
 
@@ -208,6 +225,7 @@ function showMainInterface() {
 function showConnectionPanel() {
     connectionPanel.style.display = 'block';
     mainInterface.style.display = 'none';
+    logoutBtn.style.display = 'none';
     
     // Reset interface
     currentDatabase = null;
@@ -1013,3 +1031,67 @@ document.addEventListener('keydown', (e) => {
         });
     }
 });
+function handleLogout() {
+    // Disconnect from database if connected
+    if (isConnected) {
+        socket.emit('disconnect_database');
+    }
+    
+    fetch('/logout', { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                // Reset UI state
+                mainInterface.style.display = 'none';
+                connectionPanel.style.display = '';
+                logoutBtn.style.display = 'none';
+                disconnectBtn.style.display = 'none';
+                connectionStatus.innerHTML = '<span class="status-indicator disconnected"></span><span>Disconnected</span>';
+                
+                // Reset global state
+                isConnected = false;
+                currentCredentials = null;
+                currentDatabase = null;
+                currentTable = null;
+                
+                // Clear form
+                connectionForm.reset();
+                
+                showNotification('Logged out successfully', 'info');
+            }
+        });
+}
+
+function restoreSessionCredentials() {
+    console.log('Attempting to restore session credentials...');
+    fetch('/session-credentials')
+        .then(res => res.json())
+        .then(data => {
+            console.log('Session data received:', data);
+            if (data.username && data.password) {
+                // Fill the form
+                document.getElementById('user').value = data.username;
+                document.getElementById('password').value = data.password;
+                console.log('Credentials restored, auto-connecting...');
+                
+                // Auto-connect
+                const credentials = {
+                    host: document.getElementById('host').value,
+                    port: parseInt(document.getElementById('port').value),
+                    user: data.username,
+                    password: data.password
+                };
+                currentCredentials = credentials;
+                socket.emit('connect_database', credentials);
+                showNotification('Auto-connecting with saved credentials...', 'info');
+            } else if (data.username || data.password) {
+                // Just fill available data without auto-connecting
+                if (data.username) document.getElementById('user').value = data.username;
+                if (data.password) document.getElementById('password').value = data.password;
+                console.log('Partial credentials restored');
+            }
+        })
+        .catch(error => {
+            console.error('Error restoring session credentials:', error);
+        });
+}
