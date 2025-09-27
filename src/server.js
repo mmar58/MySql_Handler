@@ -47,10 +47,6 @@ app.get('/', (req, res) => {
 
 // API to get last username/password from session
 app.get('/session-credentials', (req, res) => {
-    console.log('Session credentials requested. Session data:', {
-        lastUsername: req.session.lastUsername,
-        lastPassword: req.session.lastPassword ? '***' : undefined
-    });
     res.json({
         username: req.session.lastUsername || '',
         password: req.session.lastPassword || ''
@@ -60,15 +56,12 @@ app.get('/session-credentials', (req, res) => {
 // API to store credentials in session
 app.post('/store-credentials', (req, res) => {
     const { username, password } = req.body;
-    console.log('Storing credentials in session for username:', username);
     req.session.lastUsername = username;
     req.session.lastPassword = password;
     req.session.save((err) => {
         if (err) {
-            console.error('Error saving session:', err);
             return res.status(500).json({ success: false, error: err.message });
         }
-        console.log('Credentials stored successfully');
         res.json({ success: true });
     });
 });
@@ -313,20 +306,15 @@ io.on('connection', (socket) => {
 
 // Logout route
 app.post('/logout', (req, res) => {
-    console.log('Logout requested');
     req.session.destroy(err => {
         if (err) {
-            console.error('Error destroying session:', err);
             return res.status(500).json({ success: false, message: 'Logout failed' });
         }
-        console.log('Session destroyed successfully');
         res.json({ success: true });
     });
 });
 
 server.listen(PORT, () => {
-    console.log('='.repeat(50));
-    console.log(`🚀 MySQL Handler Server is running on port ${PORT}`);
-    console.log(`🌐 Access the application at http://localhost:${PORT}`);
-    console.log('='.repeat(50));
+    console.log(`Server is running on port ${PORT}`);
+    console.log(`Access the application at http://localhost:${PORT}`);
 });

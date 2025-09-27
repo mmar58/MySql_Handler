@@ -1063,16 +1063,13 @@ function handleLogout() {
 }
 
 function restoreSessionCredentials() {
-    console.log('Attempting to restore session credentials...');
     fetch('/session-credentials')
         .then(res => res.json())
         .then(data => {
-            console.log('Session data received:', data);
             if (data.username && data.password) {
                 // Fill the form
                 document.getElementById('user').value = data.username;
                 document.getElementById('password').value = data.password;
-                console.log('Credentials restored, auto-connecting...');
                 
                 // Auto-connect
                 const credentials = {
@@ -1088,7 +1085,6 @@ function restoreSessionCredentials() {
                 // Just fill available data without auto-connecting
                 if (data.username) document.getElementById('user').value = data.username;
                 if (data.password) document.getElementById('password').value = data.password;
-                console.log('Partial credentials restored');
             }
         })
         .catch(error => {
