@@ -709,12 +709,131 @@ function populateTableData(data) {
 function addScrollIndicator(tableContainer) {
     if (!tableContainer) return;
     
+    // Remove existing indicator
+    const existingIndicator = tableContainer.querySelector('.scroll-indicator');
+    if (existingIndicator) {
+        existingIndicator.remove();
+    }
+    
     // Check if content is wider than container
     const table = tableContainer.querySelector('table');
     if (table && table.scrollWidth > tableContainer.clientWidth) {
         tableContainer.classList.add('scrollable');
+        
+        // Create scroll indicator element
+        const indicator = document.createElement('div');
+        indicator.className = 'scroll-indicator';
+        indicator.textContent = '↔ Scroll horizontally to view all columns';
+        
+        // Position the indicator relative to the container
+        tableContainer.style.position = 'relative';
+        tableContainer.appendChild(indicator);
+        
+        // Auto-hide after 4 seconds
+        setTimeout(() => {
+            if (indicator.parentElement) {
+                indicator.style.transition = 'opacity 0.5s ease-out';
+                indicator.style.opacity = '0';
+                setTimeout(() => {
+                    if (indicator.parentElement) {
+                        indicator.remove();
+                    }
+                }, 500);
+            }
+        }, 4000);
+        
+        // Add scroll listener to show progress indicator
+        let scrollTimeout;
+        tableContainer.addEventListener('scroll', (e) => {
+            // Clear existing timeout
+            if (scrollTimeout) {
+                clearTimeout(scrollTimeout);
+            }
+            
+            // Show scroll progress if user is scrolling horizontally
+            if (e.target.scrollLeft > 0) {
+                showScrollProgress(tableContainer, e.target.scrollLeft, e.target.scrollWidth - e.target.clientWidth);
+            }
+            
+            // Hide progress after scrolling stops
+            scrollTimeout = setTimeout(() => {
+                hideScrollProgress(tableContainer);
+            }, 1000);
+        });
+        
     } else {
         tableContainer.classList.remove('scrollable');
+    }
+}
+
+function showScrollProgress(container, scrollLeft, maxScroll) {
+    let progressBar = container.querySelector('.scroll-progress');
+    
+    if (!progressBar) {
+        progressBar = document.createElement('div');
+        progressBar.className = 'scroll-progress';
+        progressBar.innerHTML = `
+            <div class="scroll-progress-bar">
+                <div class="scroll-progress-fill"></div>
+            </div>
+            <div class="scroll-progress-text">Scrolling...</div>
+        `;
+        container.appendChild(progressBar);
+        
+        // Add CSS for progress bar if not exists
+        if (!document.querySelector('#scroll-progress-styles')) {
+            const style = document.createElement('style');
+            style.id = 'scroll-progress-styles';
+            style.textContent = `
+                .scroll-progress {
+                    position: absolute;
+                    top: 10px;
+                    right: 10px;
+                    background: rgba(0,0,0,0.8);
+                    color: white;
+                    padding: 6px 10px;
+                    border-radius: 16px;
+                    font-size: 10px;
+                    z-index: 1000;
+                    min-width: 80px;
+                    text-align: center;
+                }
+                .scroll-progress-bar {
+                    width: 60px;
+                    height: 3px;
+                    background: rgba(255,255,255,0.3);
+                    border-radius: 2px;
+                    margin: 4px auto 2px;
+                    overflow: hidden;
+                }
+                .scroll-progress-fill {
+                    height: 100%;
+                    background: #007bff;
+                    border-radius: 2px;
+                    transition: width 0.1s ease;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+    }
+    
+    // Update progress
+    const progressPercentage = (scrollLeft / maxScroll) * 100;
+    const fill = progressBar.querySelector('.scroll-progress-fill');
+    fill.style.width = progressPercentage + '%';
+    
+    progressBar.style.opacity = '1';
+}
+
+function hideScrollProgress(container) {
+    const progressBar = container.querySelector('.scroll-progress');
+    if (progressBar) {
+        progressBar.style.opacity = '0';
+        setTimeout(() => {
+            if (progressBar.parentElement) {
+                progressBar.remove();
+            }
+        }, 300);
     }
 }
 
