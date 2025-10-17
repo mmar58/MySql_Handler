@@ -651,6 +651,14 @@ function populateTableData(data) {
     data.data.forEach(row => {
         const tr = document.createElement('tr');
         
+        // Add row copy button
+        const rowCopyBtn = document.createElement('button');
+        rowCopyBtn.className = 'row-copy-btn';
+        rowCopyBtn.innerHTML = '📄';
+        rowCopyBtn.title = 'Copy entire row';
+        rowCopyBtn.addEventListener('click', () => copyRowData(row));
+        tr.appendChild(rowCopyBtn);
+        
         columns.forEach(column => {
             const td = document.createElement('td');
             const value = row[column];
@@ -669,15 +677,10 @@ function populateTableData(data) {
                     td.textContent = stringValue;
                     td.className = 'data-cell numeric-content';
                 } else if (stringValue.length > 100) {
-                    // Long text content - add tooltip and truncation
-                    td.className = 'data-cell long-text tooltip';
+                    // Long text content - show truncated with full text in title
+                    td.className = 'data-cell long-text';
                     td.textContent = stringValue.substring(0, 100) + '...';
-                    
-                    // Add tooltip for full content
-                    const tooltipSpan = document.createElement('span');
-                    tooltipSpan.className = 'tooltiptext';
-                    tooltipSpan.textContent = stringValue;
-                    td.appendChild(tooltipSpan);
+                    td.title = stringValue; // Show full text on hover
                 } else if (stringValue.includes('\n') || stringValue.includes('\t')) {
                     // Multi-line or formatted content
                     td.textContent = stringValue;
@@ -692,6 +695,17 @@ function populateTableData(data) {
                     td.className = 'data-cell text-content';
                 }
             }
+            
+            // Add cell copy button
+            const cellCopyBtn = document.createElement('button');
+            cellCopyBtn.className = 'cell-copy-btn';
+            cellCopyBtn.innerHTML = '📋';
+            cellCopyBtn.title = 'Copy cell data';
+            cellCopyBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                copyCellData(value);
+            });
+            td.appendChild(cellCopyBtn);
             
             tr.appendChild(td);
         });
@@ -942,6 +956,14 @@ function populateTableStructure(structure) {
     structure.forEach(field => {
         const tr = document.createElement('tr');
         
+        // Add row copy button
+        const rowCopyBtn = document.createElement('button');
+        rowCopyBtn.className = 'row-copy-btn';
+        rowCopyBtn.innerHTML = '📄';
+        rowCopyBtn.title = 'Copy entire row';
+        rowCopyBtn.addEventListener('click', () => copyRowData(field));
+        tr.appendChild(rowCopyBtn);
+        
         ['Field', 'Type', 'Null', 'Key', 'Default', 'Extra'].forEach((prop, index) => {
             const td = document.createElement('td');
             const value = field[prop];
@@ -962,21 +984,15 @@ function populateTableStructure(structure) {
                         td.textContent = stringValue;
                         td.className = 'code-content';
                         if (stringValue.length > 50) {
-                            td.className += ' long-text tooltip';
-                            const tooltipSpan = document.createElement('span');
-                            tooltipSpan.className = 'tooltiptext';
-                            tooltipSpan.textContent = stringValue;
-                            td.appendChild(tooltipSpan);
+                            td.className += ' long-text';
+                            td.title = stringValue; // Show full text on hover
                         }
                         break;
                     case 4: // Default
                         if (stringValue.length > 30) {
-                            td.className = 'long-text tooltip';
+                            td.className = 'long-text';
                             td.textContent = stringValue.substring(0, 30) + '...';
-                            const tooltipSpan = document.createElement('span');
-                            tooltipSpan.className = 'tooltiptext';
-                            tooltipSpan.textContent = stringValue;
-                            td.appendChild(tooltipSpan);
+                            td.title = stringValue; // Show full text on hover
                         } else {
                             td.textContent = stringValue;
                             td.className = 'text-content';
@@ -987,6 +1003,17 @@ function populateTableStructure(structure) {
                         td.className = 'text-content';
                 }
             }
+            
+            // Add cell copy button
+            const cellCopyBtn = document.createElement('button');
+            cellCopyBtn.className = 'cell-copy-btn';
+            cellCopyBtn.innerHTML = '📋';
+            cellCopyBtn.title = 'Copy cell data';
+            cellCopyBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                copyCellData(value);
+            });
+            td.appendChild(cellCopyBtn);
             
             tr.appendChild(td);
         });
@@ -1138,15 +1165,15 @@ function displayQueryResult(data) {
                                 if (typeof value === 'number') {
                                     cellClass += ' numeric-content';
                                 } else if (stringValue.length > 100) {
-                                    cellClass += ' long-text tooltip';
+                                    cellClass += ' long-text';
                                     displayValue = stringValue.substring(0, 100) + '...';
-                                    html += `<td class="${cellClass}" title="${stringValue.replace(/"/g, '&quot;')}">${displayValue}</td>`;
+                                    html += `<td class="${cellClass}" title="${stringValue.replace(/"/g, '&quot;')}">${displayValue}<button class="cell-copy-btn" onclick="copyCellData('${stringValue.replace(/'/g, "\\'")}')">📋</button></td>`;
                                 } else if (stringValue.includes('\n') || stringValue.includes('\t')) {
                                     cellClass += ' text-content';
-                                    html += `<td class="${cellClass}">${displayValue}</td>`;
+                                    html += `<td class="${cellClass}">${displayValue}<button class="cell-copy-btn" onclick="copyCellData('${stringValue.replace(/'/g, "\\'")}')">📋</button></td>`;
                                 } else {
                                     cellClass += ' text-content';
-                                    html += `<td class="${cellClass}">${displayValue}</td>`;
+                                    html += `<td class="${cellClass}">${displayValue}<button class="cell-copy-btn" onclick="copyCellData('${stringValue.replace(/'/g, "\\'")}')">📋</button></td>`;
                                 }
                             }
                         });
@@ -1189,15 +1216,15 @@ function displayQueryResult(data) {
                                 cellClass += ' numeric-content';
                                 html += `<td class="${cellClass}">${displayValue}</td>`;
                             } else if (stringValue.length > 100) {
-                                cellClass += ' long-text tooltip';
+                                cellClass += ' long-text';
                                 displayValue = stringValue.substring(0, 100) + '...';
-                                html += `<td class="${cellClass}" title="${stringValue.replace(/"/g, '&quot;')}">${displayValue}</td>`;
+                                html += `<td class="${cellClass}" title="${stringValue.replace(/"/g, '&quot;')}">${displayValue}<button class="cell-copy-btn" onclick="copyCellData('${stringValue.replace(/'/g, "\\'")}')">📋</button></td>`;
                             } else if (stringValue.includes('\n') || stringValue.includes('\t')) {
                                 cellClass += ' text-content';
-                                html += `<td class="${cellClass}">${displayValue}</td>`;
+                                html += `<td class="${cellClass}">${displayValue}<button class="cell-copy-btn" onclick="copyCellData('${stringValue.replace(/'/g, "\\'")}')">📋</button></td>`;
                             } else {
                                 cellClass += ' text-content';
-                                html += `<td class="${cellClass}">${displayValue}</td>`;
+                                html += `<td class="${cellClass}">${displayValue}<button class="cell-copy-btn" onclick="copyCellData('${stringValue.replace(/'/g, "\\'")}')">📋</button></td>`;
                             }
                         }
                     });
@@ -1370,3 +1397,73 @@ document.addEventListener('keydown', (e) => {
         });
     }
 });
+
+// Copy functions
+function copyRowData(rowData) {
+    try {
+        // Format row data as JSON or tab-separated values
+        const jsonData = JSON.stringify(rowData, null, 2);
+        
+        // Try to copy as JSON first
+        navigator.clipboard.writeText(jsonData).then(() => {
+            showNotification('Row data copied to clipboard (JSON format)', 'success');
+            animateCopySuccess(event.target);
+        }).catch(() => {
+            // Fallback to tab-separated values
+            const tsvData = Object.values(rowData).map(val => val === null ? 'NULL' : String(val)).join('\t');
+            fallbackCopyText(tsvData);
+            showNotification('Row data copied to clipboard (TSV format)', 'success');
+            animateCopySuccess(event.target);
+        });
+    } catch (error) {
+        console.error('Copy failed:', error);
+        showNotification('Failed to copy row data', 'error');
+    }
+}
+
+function copyCellData(cellValue) {
+    try {
+        const textValue = cellValue === null ? 'NULL' : String(cellValue);
+        
+        navigator.clipboard.writeText(textValue).then(() => {
+            showNotification(`Cell data copied: "${textValue.length > 50 ? textValue.substring(0, 50) + '...' : textValue}"`, 'success');
+            if (event.target) animateCopySuccess(event.target);
+        }).catch(() => {
+            fallbackCopyText(textValue);
+            showNotification(`Cell data copied: "${textValue.length > 50 ? textValue.substring(0, 50) + '...' : textValue}"`, 'success');
+            if (event.target) animateCopySuccess(event.target);
+        });
+    } catch (error) {
+        console.error('Copy failed:', error);
+        showNotification('Failed to copy cell data', 'error');
+    }
+}
+
+function animateCopySuccess(button) {
+    if (button) {
+        button.classList.add('copy-success');
+        setTimeout(() => {
+            button.classList.remove('copy-success');
+        }, 300);
+    }
+}
+
+function fallbackCopyText(text) {
+    // Fallback method for older browsers
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+        document.execCommand('copy');
+    } catch (err) {
+        console.error('Fallback copy failed:', err);
+    }
+    
+    document.body.removeChild(textArea);
+}
