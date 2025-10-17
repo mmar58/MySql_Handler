@@ -293,6 +293,59 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Export database
+    socket.on('export_database', async ({ database, options = {} }) => {
+        const dbManager = activeConnections.get(socket.id);
+        if (!dbManager) {
+            socket.emit('error', { message: 'No active database connection' });
+            return;
+        }
+
+        try {
+            const exportResult = await dbManager.exportDatabase(database, options);
+            socket.emit('database_exported', exportResult);
+        } catch (error) {
+            socket.emit('error', { message: error.message });
+        }
+    });
+
+    // Export table
+    socket.on('export_table', async ({ database, table, options = {} }) => {
+        const dbManager = activeConnections.get(socket.id);
+        if (!dbManager) {
+            socket.emit('error', { message: 'No active database connection' });
+            return;
+        }
+
+        try {
+            const tableContent = await dbManager.exportTable(database, table, options);
+            const exportResult = {
+                filename: `${table}_export_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.sql`,
+                content: tableContent,
+                size: Buffer.byteLength(tableContent, 'utf8')
+            };
+            socket.emit('table_exported', exportResult);
+        } catch (error) {
+            socket.emit('error', { message: error.message });
+        }
+    });
+
+    // Get row count for export preview
+    socket.on('get_row_count', async ({ database, table, whereClause = null }) => {
+        const dbManager = activeConnections.get(socket.id);
+        if (!dbManager) {
+            socket.emit('error', { message: 'No active database connection' });
+            return;
+        }
+
+        try {
+            const count = await dbManager.getRowCount(database, table, whereClause);
+            socket.emit('row_count_result', { database, table, count, whereClause });
+        } catch (error) {
+            socket.emit('error', { message: error.message });
+        }
+    });
+
     // Handle client disconnect
     socket.on('disconnect', async () => {
         console.log('User disconnected:', socket.id);

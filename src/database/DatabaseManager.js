@@ -409,6 +409,129 @@ class DatabaseManager {
             throw new Error(`Failed to get table constraints: ${error.message}`);
         }
     }
+
+    async exportDatabase(databaseName, options = {}) {
+        if (!this.connection) {
+            throw new Error('No database connection');
+        }
+
+        const { includeData = true, selectedTables = null } = options;
+        let sqlContent = '';
+
+        try {
+            // Add header comment
+            sqlContent += `-- Database Export: ${databaseName}\n`;
+            sqlContent += `-- Generated on: ${new Date().toISOString()}\n`;
+            sqlContent += `-- MySQL Handler Export\n\n`;
+
+            // Create database statement
+            sqlContent += `CREATE DATABASE IF NOT EXISTS \`${databaseName}\`;\n`;
+            sqlContent += `USE \`${databaseName}\`;\n\n`;
+
+            // Get all tables or selected tables
+            const tables = selectedTables || await this.getTables(databaseName);
+
+            for (const tableName of tables) {
+                sqlContent += await this.exportTable(databaseName, tableName, { includeData });
+                sqlContent += '\n';
+            }
+
+            return {
+                filename: `${databaseName}_export_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.sql`,
+                content: sqlContent,
+                size: Buffer.byteLength(sqlContent, 'utf8')
+            };
+        } catch (error) {
+            throw new Error(`Failed to export database: ${error.message}`);
+        }
+    }
+
+    async exportTable(databaseName, tableName, options = {}) {
+        if (!this.connection) {
+            throw new Error('No database connection');
+        }
+
+        const { includeData = true, selectedRows = null, whereClause = null } = options;
+        let sqlContent = '';
+
+        try {
+            // Add table header comment
+            sqlContent += `-- Table structure for \`${tableName}\`\n`;
+            sqlContent += `DROP TABLE IF EXISTS \`${tableName}\`;\n`;
+
+            // Get CREATE TABLE statement
+            const [createResult] = await this.connection.query(
+                `SHOW CREATE TABLE \`${databaseName}\`.\`${tableName}\``
+            );
+            sqlContent += createResult[0]['Create Table'] + ';\n\n';
+
+            if (includeData) {
+                sqlContent += `-- Data for table \`${tableName}\`\n`;
+                
+                let dataQuery = `SELECT * FROM \`${databaseName}\`.\`${tableName}\``;
+                
+                // Add WHERE clause if provided
+                if (whereClause) {
+                    dataQuery += ` WHERE ${whereClause}`;
+                }
+
+                const [rows] = await this.connection.query(dataQuery);
+
+                if (rows.length > 0) {
+                    // Filter rows if specific rows are selected
+                    let dataRows = rows;
+                    if (selectedRows && Array.isArray(selectedRows)) {
+                        dataRows = rows.filter((_, index) => selectedRows.includes(index));
+                    }
+
+                    if (dataRows.length > 0) {
+                        const columns = Object.keys(dataRows[0]);
+                        const columnsList = columns.map(col => `\`${col}\``).join(', ');
+                        
+                        sqlContent += `LOCK TABLES \`${tableName}\` WRITE;\n`;
+                        sqlContent += `INSERT INTO \`${tableName}\` (${columnsList}) VALUES\n`;
+
+                        const valueStrings = dataRows.map(row => {
+                            const values = columns.map(col => {
+                                const value = row[col];
+                                if (value === null) return 'NULL';
+                                if (typeof value === 'string') {
+                                    return this.connection.escape(value);
+                                }
+                                return this.connection.escape(value);
+                            });
+                            return `(${values.join(', ')})`;
+                        });
+
+                        sqlContent += valueStrings.join(',\n') + ';\n';
+                        sqlContent += `UNLOCK TABLES;\n`;
+                    }
+                }
+            }
+
+            return sqlContent;
+        } catch (error) {
+            throw new Error(`Failed to export table: ${error.message}`);
+        }
+    }
+
+    async getRowCount(databaseName, tableName, whereClause = null) {
+        if (!this.connection) {
+            throw new Error('No database connection');
+        }
+
+        try {
+            let query = `SELECT COUNT(*) as count FROM \`${databaseName}\`.\`${tableName}\``;
+            if (whereClause) {
+                query += ` WHERE ${whereClause}`;
+            }
+            
+            const [result] = await this.connection.query(query);
+            return result[0].count;
+        } catch (error) {
+            throw new Error(`Failed to get row count: ${error.message}`);
+        }
+    }
 }
 
 module.exports = DatabaseManager;

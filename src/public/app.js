@@ -84,6 +84,20 @@ function setupEventListeners() {
     // Create database form
     document.getElementById('createDatabaseForm').addEventListener('submit', createDatabase);
 
+    // Export functionality
+    document.getElementById('exportDatabase').addEventListener('click', showExportDatabaseModal);
+    document.getElementById('exportTableBtn').addEventListener('click', showExportTableModal);
+    document.getElementById('exportSelectedRows').addEventListener('click', exportSelectedRows);
+    document.getElementById('exportCurrentData').addEventListener('click', exportCurrentData);
+    document.getElementById('exportDatabaseForm').addEventListener('submit', exportDatabase);
+    document.getElementById('exportTableForm').addEventListener('submit', exportTable);
+
+    // Export modal controls
+    document.getElementById('exportTableIncludeData').addEventListener('change', toggleDataExportOptions);
+    document.querySelectorAll('input[name="dataExportType"]').forEach(radio => {
+        radio.addEventListener('change', toggleCustomWhereClause);
+    });
+
     // Alter table forms
     document.getElementById('addColumnForm').addEventListener('submit', addColumn);
     document.getElementById('dropColumnForm').addEventListener('submit', dropColumn);
@@ -177,6 +191,25 @@ function setupSocketListeners() {
         loadTables(); // Refresh tables list
     });
 
+    socket.on('database_exported', (data) => {
+        downloadFile(data.filename, data.content);
+        showNotification(`Database exported successfully! File size: ${formatFileSize(data.size)}`, 'success');
+        closeModal('exportDatabaseModal');
+    });
+
+    socket.on('table_exported', (data) => {
+        downloadFile(data.filename, data.content);
+        showNotification(`Table exported successfully! File size: ${formatFileSize(data.size)}`, 'success');
+        closeModal('exportTableModal');
+    });
+
+    socket.on('row_count_result', (data) => {
+        const preview = document.getElementById('rowCountPreview');
+        if (preview) {
+            preview.textContent = `Estimated rows: ${data.count}`;
+        }
+    });
+
     socket.on('error', (data) => {
         showNotification(data.message, 'error');
     });
@@ -226,6 +259,11 @@ function showConnectionPanel() {
     connectionPanel.style.display = 'block';
     mainInterface.style.display = 'none';
     logoutBtn.style.display = 'none';
+    
+    // Hide export buttons
+    document.getElementById('exportDatabase').style.display = 'none';
+    document.getElementById('exportCurrentData').style.display = 'none';
+    document.getElementById('exportSelectedRows').style.display = 'none';
     
     // Reset interface
     currentDatabase = null;
@@ -281,6 +319,9 @@ function selectDatabase(database, element) {
     currentDatabase = database;
     currentTable = null;
     
+    // Show export button
+    document.getElementById('exportDatabase').style.display = 'inline-block';
+    
     // Clear table list and data
     tableList.innerHTML = '';
     clearTableData();
@@ -307,6 +348,10 @@ function selectTable(table, element) {
     
     currentTable = table;
     selectedTableSpan.textContent = `${currentDatabase}.${table}`;
+    
+    // Show export buttons
+    document.getElementById('exportCurrentData').style.display = 'inline-block';
+    document.getElementById('exportSelectedRows').style.display = 'inline-block';
     
     // Reset pagination
     currentPage = 1;
@@ -1442,3 +1487,221 @@ function fallbackCopyText(text) {
     
     document.body.removeChild(textArea);
 }
+
+// Export functionality
+function showExportDatabaseModal() {
+    if (!currentDatabase) {
+        showNotification('Please select a database first', 'error');
+        return;
+    }
+    
+    document.getElementById('exportDbName').textContent = currentDatabase;
+    
+    // Load tables for selection
+    socket.emit('get_tables', currentDatabase);
+    
+    // Show modal after tables are loaded
+    setTimeout(() => {
+        populateExportTablesList();
+        document.getElementById('exportDatabaseModal').style.display = 'block';
+    }, 100);
+}
+
+function showExportTableModal() {
+    if (!currentTable || !currentDatabase) {
+        showNotification('Please select a table first', 'error');
+        return;
+    }
+    
+    document.getElementById('exportTableName').textContent = `${currentDatabase}.${currentTable}`;
+    document.getElementById('exportTableModal').style.display = 'block';
+}
+
+function populateExportTablesList() {
+    const container = document.getElementById('exportTablesList');
+    container.innerHTML = '';
+    
+    // Get tables from the sidebar
+    const tableItems = document.querySelectorAll('.table-list li');
+    tableItems.forEach(item => {
+        const tableName = item.textContent;
+        
+        const div = document.createElement('div');
+        div.className = 'export-table-item';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = tableName;
+        checkbox.id = `export_table_${tableName}`;
+        checkbox.checked = true;
+        
+        const label = document.createElement('label');
+        label.htmlFor = `export_table_${tableName}`;
+        label.textContent = tableName;
+        
+        div.appendChild(checkbox);
+        div.appendChild(label);
+        container.appendChild(div);
+    });
+}
+
+function selectAllTables() {
+    document.querySelectorAll('#exportTablesList input[type="checkbox"]').forEach(cb => {
+        cb.checked = true;
+    });
+}
+
+function deselectAllTables() {
+    document.querySelectorAll('#exportTablesList input[type="checkbox"]').forEach(cb => {
+        cb.checked = false;
+    });
+}
+
+function toggleDataExportOptions() {
+    const includeData = document.getElementById('exportTableIncludeData').checked;
+    const dataOptions = document.getElementById('dataExportOptions');
+    dataOptions.style.display = includeData ? 'block' : 'none';
+}
+
+function toggleCustomWhereClause() {
+    const customRadio = document.querySelector('input[name="dataExportType"][value="custom"]');
+    const customDiv = document.getElementById('customWhereClause');
+    customDiv.style.display = customRadio.checked ? 'block' : 'none';
+}
+
+function previewRowCount() {
+    const whereClause = document.getElementById('exportWhereClause').value.trim();
+    if (!whereClause) {
+        showNotification('Please enter a WHERE clause', 'error');
+        return;
+    }
+    
+    socket.emit('get_row_count', {
+        database: currentDatabase,
+        table: currentTable,
+        whereClause: whereClause
+    });
+}
+
+function exportDatabase(e) {
+    e.preventDefault();
+    
+    const includeData = document.getElementById('exportIncludeData').checked;
+    const selectedTables = Array.from(document.querySelectorAll('#exportTablesList input[type="checkbox"]:checked'))
+        .map(cb => cb.value);
+    
+    if (selectedTables.length === 0) {
+        showNotification('Please select at least one table to export', 'error');
+        return;
+    }
+    
+    showNotification('Exporting database... This may take a moment.', 'info');
+    
+    socket.emit('export_database', {
+        database: currentDatabase,
+        options: {
+            includeData: includeData,
+            selectedTables: selectedTables
+        }
+    });
+}
+
+function exportTable(e) {
+    e.preventDefault();
+    
+    const includeData = document.getElementById('exportTableIncludeData').checked;
+    const dataExportType = document.querySelector('input[name="dataExportType"]:checked').value;
+    
+    let options = {
+        includeData: includeData
+    };
+    
+    if (includeData) {
+        if (dataExportType === 'current') {
+            // Use current search/filter conditions
+            options.whereClause = buildCurrentWhereClause();
+        } else if (dataExportType === 'custom') {
+            const customWhere = document.getElementById('exportWhereClause').value.trim();
+            if (!customWhere) {
+                showNotification('Please enter a WHERE clause or select a different export option', 'error');
+                return;
+            }
+            options.whereClause = customWhere;
+        }
+        // For 'all', no additional options needed
+    }
+    
+    showNotification('Exporting table... This may take a moment.', 'info');
+    
+    socket.emit('export_table', {
+        database: currentDatabase,
+        table: currentTable,
+        options: options
+    });
+}
+
+function buildCurrentWhereClause() {
+    // Build WHERE clause based on current search conditions
+    if (currentSearchColumn && currentSearchValue) {
+        return `\`${currentSearchColumn}\` LIKE '%${currentSearchValue}%'`;
+    }
+    return null;
+}
+
+function exportSelectedRows() {
+    showNotification('Row selection export feature coming soon!', 'info');
+    // This could be implemented to export only selected rows
+    // Would require adding checkboxes to each row and tracking selection
+}
+
+function exportCurrentData() {
+    if (!currentTable || !currentDatabase) {
+        showNotification('Please select a table first', 'error');
+        return;
+    }
+    
+    // Quick export of current filtered data
+    let options = {
+        includeData: true,
+        whereClause: buildCurrentWhereClause()
+    };
+    
+    showNotification('Exporting current data... This may take a moment.', 'info');
+    
+    socket.emit('export_table', {
+        database: currentDatabase,
+        table: currentTable,
+        options: options
+    });
+}
+
+function downloadFile(filename, content) {
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    
+    URL.revokeObjectURL(url);
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// Global functions for HTML onclick handlers
+window.selectAllTables = selectAllTables;
+window.deselectAllTables = deselectAllTables;
+window.previewRowCount = previewRowCount;

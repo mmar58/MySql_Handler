@@ -1,10 +1,11 @@
 # 🗄️ MySQL Database Manager
 
-A powerful, real-time web-based MySQL database management tool built with modern web technologies. This application provides a comprehensive interface for managing MySQL databases, tables, and data with advanced features like search, sorting, and table alteration capabilities.
+A powerful, real-time web-based MySQL database management tool built with modern web technologies. This application provides a comprehensive interface for managing MySQL databases, tables, and data with advanced features like search, sorting, table alteration, data export, and copy functionality.
 
 [ ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [ ![Node.js Version](https://img.shields.io/badge/node.js-v14%2B-green.svg)](https://nodejs.org/)
 [ ![MySQL](https://img.shields.io/badge/mysql-v5.7%2B-blue.svg)](https://www.mysql.com/)
+[ ![Socket.IO](https://img.shields.io/badge/socket.io-v4.0%2B-black.svg)](https://socket.io/)
 
 ## 🚀 Features
 
@@ -29,6 +30,9 @@ A powerful, real-time web-based MySQL database management tool built with modern
 * **Dynamic Sorting**: Click-to-sort on any column with ascending/descending indicators
 * **Data Type Handling**: Proper display of NULL values, numbers, strings, and dates
 * **Responsive Tables**: Mobile-friendly table layouts with horizontal scrolling
+* **Smart Scroll Indicators**: Visual indicators for horizontally scrollable content
+* **Copy Functionality**: One-click copy for individual cells and entire rows
+* **Long Text Handling**: Truncated display with hover tooltips for large text content
 
 ### 🔧 **Table Structure Management**
 
@@ -41,10 +45,22 @@ A powerful, real-time web-based MySQL database management tool built with modern
 ### 📝 **SQL Query Interface**
 
 * **Multi-query Execution**: Execute multiple SQL statements in a single operation
-* **Syntax Highlighting**: Enhanced query input with proper formatting
+* **Enhanced Query Input**: Large text area with proper formatting
 * **Query Results Display**: Formatted results with proper data type handling
-* **Query History**: Track and reuse previous queries
-* **Error Handling**: Detailed error messages with line numbers
+* **Database Selection**: Choose target database for query execution
+* **Error Handling**: Detailed error messages with clear feedback
+* **Copy Results**: Copy functionality for query result data
+
+### 📥 **Export & Backup Capabilities**
+
+* **Database Export**: Complete database backup with structure and data
+* **Table Export**: Individual table export with flexible options
+* **Selective Export**: Choose specific tables for database export
+* **Data Options**: Export structure only or include data
+* **Custom Filtering**: Export data with custom WHERE clauses
+* **Row Count Preview**: Preview number of rows before export
+* **Multiple Formats**: SQL dump format with proper MySQL syntax
+* **Automatic Downloads**: Browser-based file downloads with timestamped names
 
 ### 🎨 **Modern User Interface**
 
@@ -52,7 +68,11 @@ A powerful, real-time web-based MySQL database management tool built with modern
 * **Responsive Design**: Works seamlessly on desktop, tablet, and mobile devices
 * **Real-time Notifications**: Toast notifications for all operations
 * **Loading States**: Visual feedback during data loading operations
-* **Dark Mode Ready**: CSS structure prepared for theme switching
+* **Modal Dialogs**: User-friendly modals for complex operations
+* **Copy Buttons**: Intuitive copy buttons for rows and cells with visual feedback
+* **Export Interfaces**: Comprehensive export dialogs with advanced options
+* **Session Management**: Persistent login with credential storage
+* **Smooth Animations**: CSS transitions and hover effects for better UX
 
 ## 🛠️ Technology Stack
 
@@ -62,14 +82,19 @@ A powerful, real-time web-based MySQL database management tool built with modern
 * **Express.js**: Web application framework
 * **Socket.IO**: Real-time bidirectional communication
 * **MySQL2**: MySQL database driver with Promise support
+* **Express Session**: Session management for credential persistence
 * **CORS**: Cross-origin resource sharing middleware
+* **Custom DatabaseManager**: Comprehensive database operation handler
 
 ### **Frontend**
 
-* **HTML5**: Modern semantic markup
-* **CSS3**: Advanced styling with Flexbox and Grid
+* **HTML5**: Modern semantic markup with accessibility features
+* **CSS3**: Advanced styling with Flexbox, Grid, and animations
 * **Vanilla JavaScript**: No framework dependencies, pure JS implementation
 * **Socket.IO Client**: Real-time communication with the server
+* **Clipboard API**: Modern copy functionality with fallback support
+* **File Download API**: Browser-based file downloads for exports
+* **Responsive CSS**: Mobile-first design with media queries
 
 ### **Database**
 
@@ -176,6 +201,38 @@ NODE_ENV=production
 2. **Select Target Database** from the dropdown
 3. **Write Your Query** in the text area
 4. **Execute**: View results in the formatted table below
+5. **Copy Results**: Use copy buttons to copy query result data
+
+### 📁 **Exporting Data**
+
+#### **Database Export**
+1. **Select a Database** from the sidebar
+2. **Click Export DB** button
+3. **Choose Options**:
+   - Include data or structure only
+   - Select specific tables to export
+4. **Click Export Database** - file downloads automatically
+
+#### **Table Export**
+1. **Select a Table** from the Data or Structure tab
+2. **Click Export Table** button
+3. **Configure Export**:
+   - Include data or structure only
+   - Export all data, current filtered data, or custom WHERE clause
+   - Preview row count for custom queries
+4. **Click Export Table** - SQL file downloads with timestamp
+
+#### **Quick Data Export**
+1. **In Data tab**, use **Export Current Data** for filtered results
+2. **Copy individual cells** with the copy button in each cell
+3. **Copy entire rows** with the row copy button (JSON format)
+
+### 🔄 **Copy Functionality**
+
+* **Cell Copy**: Hover over any cell and click the 📋 button
+* **Row Copy**: Click the 📄 button at the start of any row
+* **Query Results**: Copy buttons available in SQL query results
+* **Visual Feedback**: Buttons animate on successful copy
 
 ## 🔧 API Documentation
 
@@ -197,6 +254,9 @@ NODE_ENV=production
 | `drop_database` | `databaseName` | Delete database |
 | `drop_table` | `{database, table}` | Delete table |
 | `get_table_indexes` | `{database, table}` | Get table indexes |
+| `export_database` | `{database, options}` | Export database with options |
+| `export_table` | `{database, table, options}` | Export table with options |
+| `get_row_count` | `{database, table, whereClause}` | Get row count for preview |
 
 #### Server → Client Events
 
@@ -209,14 +269,38 @@ NODE_ENV=production
 | `table_structure` | `{columns}` | Table column information |
 | `table_data` | `{data, total, page, searchColumn, searchValue, sortColumn, sortDirection}` | Table data with metadata |
 | `query_result` | `{results, message}` | SQL query results |
+| `database_exported` | `{filename, content, size}` | Database export file data |
+| `table_exported` | `{filename, content, size}` | Table export file data |
+| `row_count_result` | `{database, table, count, whereClause}` | Row count for export preview |
 | `error` | `{message}` | Error notification |
+
+### Export Options
+
+#### Database Export Options
+```javascript
+{
+  includeData: true,           // Include table data or structure only
+  selectedTables: ['table1', 'table2']  // Specific tables to export
+}
+```
+
+#### Table Export Options
+```javascript
+{
+  includeData: true,           // Include data or structure only
+  whereClause: "id > 100",     // Custom WHERE condition
+  selectedRows: [0, 1, 2]      // Specific row indices (future feature)
+}
+```
 
 ## 🛡️ Security Features
 
-* **SQL Injection Prevention**: All queries use parameterized statements
+* **SQL Injection Prevention**: All queries use parameterized statements and proper escaping
 * **Input Validation**: Client and server-side input validation
-* **Connection Security**: Secure credential handling
+* **Connection Security**: Secure credential handling with session storage
 * **Error Handling**: Comprehensive error management without exposing sensitive data
+* **Export Security**: Proper data escaping in export files
+* **Session Management**: Secure session handling with automatic cleanup
 
 ## 🔧 Development
 
@@ -240,11 +324,13 @@ Uses nodemon for automatic server restart on file changes.
 
 Located in `src/database/DatabaseManager.js`, this class handles:
 
-* Connection management
+* Connection management and pooling
 * Database operations (CRUD)
 * Table operations (structure, data, indexes)
 * Query execution with proper escaping
 * Search and sorting functionality
+* Export operations (database and table exports)
+* Row count calculations for export previews
 
 #### Server Configuration
 
@@ -265,6 +351,9 @@ The `src/public/app.js` implements:
 * Real-time UI updates
 * Form validation and submission
 * Pagination, search, and sorting logic
+* Export functionality with modal interfaces
+* Copy-to-clipboard operations
+* File download handling
 
 ## 🐛 Troubleshooting
 
@@ -287,6 +376,15 @@ The `src/public/app.js` implements:
    * Ensure table has data
    * Verify column names are correct
    * Check for special characters in search terms
+5. **Export Issues**
+   * Verify sufficient disk space for large exports
+   * Check browser download settings
+   * Ensure proper permissions for selected tables
+   * For large datasets, export in smaller chunks
+6. **Copy Functionality Not Working**
+   * Ensure browser supports Clipboard API
+   * Check browser permissions for clipboard access
+   * Try the copy buttons instead of keyboard shortcuts
 
 ### Debug Mode
 
@@ -318,10 +416,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-* **Socket.IO** for real-time communication
-* **MySQL2** for robust database connectivity
-* **Express.js** for the web framework foundation
-* The open-source community for inspiration and tools
+* **Socket.IO** for real-time bidirectional communication
+* **MySQL2** for robust database connectivity with Promise support
+* **Express.js** for the lightweight and flexible web framework
+* **Node.js** community for excellent ecosystem and tools
+* **Modern Web APIs** (Clipboard API, File Download API) for enhanced user experience
+* The open-source community for inspiration, tools, and continuous improvement
 
 ## 📞 Support
 
