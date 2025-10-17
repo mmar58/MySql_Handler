@@ -654,11 +654,45 @@ function populateTableData(data) {
         columns.forEach(column => {
             const td = document.createElement('td');
             const value = row[column];
-            td.textContent = value === null ? 'NULL' : value;
+            
+            // Handle null values
             if (value === null) {
+                td.textContent = 'NULL';
                 td.style.fontStyle = 'italic';
                 td.style.color = '#888';
+                td.className = 'data-cell';
+            } else {
+                const stringValue = String(value);
+                
+                // Determine content type and apply appropriate styling
+                if (typeof value === 'number') {
+                    td.textContent = stringValue;
+                    td.className = 'data-cell numeric-content';
+                } else if (stringValue.length > 100) {
+                    // Long text content - add tooltip and truncation
+                    td.className = 'data-cell long-text tooltip';
+                    td.textContent = stringValue.substring(0, 100) + '...';
+                    
+                    // Add tooltip for full content
+                    const tooltipSpan = document.createElement('span');
+                    tooltipSpan.className = 'tooltiptext';
+                    tooltipSpan.textContent = stringValue;
+                    td.appendChild(tooltipSpan);
+                } else if (stringValue.includes('\n') || stringValue.includes('\t')) {
+                    // Multi-line or formatted content
+                    td.textContent = stringValue;
+                    td.className = 'data-cell text-content';
+                } else if (/^[A-Z_][A-Z0-9_]*$/i.test(stringValue) && stringValue.length > 10) {
+                    // Looks like code/identifiers
+                    td.textContent = stringValue;
+                    td.className = 'data-cell code-content';
+                } else {
+                    // Regular text content
+                    td.textContent = stringValue;
+                    td.className = 'data-cell text-content';
+                }
             }
+            
             tr.appendChild(td);
         });
         
@@ -667,6 +701,21 @@ function populateTableData(data) {
     
     // Show search info if search is active
     updateSearchInfo(data);
+    
+    // Check if table is horizontally scrollable and add indicator
+    addScrollIndicator(dataTable.closest('.table-container'));
+}
+
+function addScrollIndicator(tableContainer) {
+    if (!tableContainer) return;
+    
+    // Check if content is wider than container
+    const table = tableContainer.querySelector('table');
+    if (table && table.scrollWidth > tableContainer.clientWidth) {
+        tableContainer.classList.add('scrollable');
+    } else {
+        tableContainer.classList.remove('scrollable');
+    }
 }
 
 function updateSearchColumns(columns) {
@@ -774,10 +823,52 @@ function populateTableStructure(structure) {
     structure.forEach(field => {
         const tr = document.createElement('tr');
         
-        ['Field', 'Type', 'Null', 'Key', 'Default', 'Extra'].forEach(prop => {
+        ['Field', 'Type', 'Null', 'Key', 'Default', 'Extra'].forEach((prop, index) => {
             const td = document.createElement('td');
             const value = field[prop];
-            td.textContent = value === null ? '' : value;
+            
+            if (value === null || value === '') {
+                td.textContent = '';
+                td.style.color = '#888';
+            } else {
+                const stringValue = String(value);
+                
+                // Apply specific styling based on column type
+                switch (index) {
+                    case 0: // Field name
+                        td.textContent = stringValue;
+                        td.className = 'code-content';
+                        break;
+                    case 1: // Type
+                        td.textContent = stringValue;
+                        td.className = 'code-content';
+                        if (stringValue.length > 50) {
+                            td.className += ' long-text tooltip';
+                            const tooltipSpan = document.createElement('span');
+                            tooltipSpan.className = 'tooltiptext';
+                            tooltipSpan.textContent = stringValue;
+                            td.appendChild(tooltipSpan);
+                        }
+                        break;
+                    case 4: // Default
+                        if (stringValue.length > 30) {
+                            td.className = 'long-text tooltip';
+                            td.textContent = stringValue.substring(0, 30) + '...';
+                            const tooltipSpan = document.createElement('span');
+                            tooltipSpan.className = 'tooltiptext';
+                            tooltipSpan.textContent = stringValue;
+                            td.appendChild(tooltipSpan);
+                        } else {
+                            td.textContent = stringValue;
+                            td.className = 'text-content';
+                        }
+                        break;
+                    default:
+                        td.textContent = stringValue;
+                        td.className = 'text-content';
+                }
+            }
+            
             tr.appendChild(td);
         });
         
@@ -786,6 +877,9 @@ function populateTableStructure(structure) {
     
     // Update alter form columns
     updateAlterFormColumns(structure);
+    
+    // Add scroll indicator if needed
+    addScrollIndicator(structureTable.closest('.table-container'));
 }
 
 function updatePagination(data) {
@@ -915,7 +1009,27 @@ function displayQueryResult(data) {
                         html += '<tr>';
                         columns.forEach(col => {
                             const value = row[col];
-                            html += `<td>${value === null ? '<em>NULL</em>' : value}</td>`;
+                            if (value === null) {
+                                html += '<td class="data-cell" style="font-style: italic; color: #888;"><em>NULL</em></td>';
+                            } else {
+                                const stringValue = String(value);
+                                let cellClass = 'data-cell';
+                                let displayValue = stringValue;
+                                
+                                if (typeof value === 'number') {
+                                    cellClass += ' numeric-content';
+                                } else if (stringValue.length > 100) {
+                                    cellClass += ' long-text tooltip';
+                                    displayValue = stringValue.substring(0, 100) + '...';
+                                    html += `<td class="${cellClass}" title="${stringValue.replace(/"/g, '&quot;')}">${displayValue}</td>`;
+                                } else if (stringValue.includes('\n') || stringValue.includes('\t')) {
+                                    cellClass += ' text-content';
+                                    html += `<td class="${cellClass}">${displayValue}</td>`;
+                                } else {
+                                    cellClass += ' text-content';
+                                    html += `<td class="${cellClass}">${displayValue}</td>`;
+                                }
+                            }
                         });
                         html += '</tr>';
                     });
@@ -945,7 +1059,28 @@ function displayQueryResult(data) {
                     html += '<tr>';
                     columns.forEach(col => {
                         const value = row[col];
-                        html += `<td>${value === null ? '<em>NULL</em>' : value}</td>`;
+                        if (value === null) {
+                            html += '<td class="data-cell" style="font-style: italic; color: #888;"><em>NULL</em></td>';
+                        } else {
+                            const stringValue = String(value);
+                            let cellClass = 'data-cell';
+                            let displayValue = stringValue;
+                            
+                            if (typeof value === 'number') {
+                                cellClass += ' numeric-content';
+                                html += `<td class="${cellClass}">${displayValue}</td>`;
+                            } else if (stringValue.length > 100) {
+                                cellClass += ' long-text tooltip';
+                                displayValue = stringValue.substring(0, 100) + '...';
+                                html += `<td class="${cellClass}" title="${stringValue.replace(/"/g, '&quot;')}">${displayValue}</td>`;
+                            } else if (stringValue.includes('\n') || stringValue.includes('\t')) {
+                                cellClass += ' text-content';
+                                html += `<td class="${cellClass}">${displayValue}</td>`;
+                            } else {
+                                cellClass += ' text-content';
+                                html += `<td class="${cellClass}">${displayValue}</td>`;
+                            }
+                        }
                     });
                     html += '</tr>';
                 });
@@ -1091,3 +1226,28 @@ function restoreSessionCredentials() {
             console.error('Error restoring session credentials:', error);
         });
 }
+
+// Handle window resize to update scroll indicators
+window.addEventListener('resize', () => {
+    // Update scroll indicators for all table containers
+    document.querySelectorAll('.table-container').forEach(container => {
+        addScrollIndicator(container);
+    });
+});
+
+// Handle keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.key === 'Enter') {
+        if (document.activeElement === sqlQuery) {
+            executeQuery();
+        }
+    } else if (e.key === 'Escape') {
+        // Close any open modals
+        const modals = document.querySelectorAll('.modal');
+        modals.forEach(modal => {
+            if (modal.style.display === 'block') {
+                modal.style.display = 'none';
+            }
+        });
+    }
+});
