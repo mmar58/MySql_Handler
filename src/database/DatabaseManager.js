@@ -9,15 +9,40 @@ class DatabaseManager {
             password: credentials.password,
             connectTimeout: 60000
         };
+
+        if (credentials.ssl) {
+            this.credentials.ssl = {
+                rejectUnauthorized: credentials.ssl.rejectUnauthorized !== false
+            };
+
+            if (credentials.ssl.ca) this.credentials.ssl.ca = credentials.ssl.ca;
+            if (credentials.ssl.cert) this.credentials.ssl.cert = credentials.ssl.cert;
+            if (credentials.ssl.key) this.credentials.ssl.key = credentials.ssl.key;
+        }
+
         this.connection = null;
     }
 
     async connect() {
         try {
+            if (this.credentials.ssl) {
+                console.log('Attempting secure SSL connection to database...');
+            } else {
+                console.log('Attempting standard connection to database...');
+            }
+
             this.connection = await mysql.createConnection(this.credentials);
-            console.log('Database connected successfully');
+            console.log(`Database connected successfully (${this.credentials.ssl ? 'SSL' : 'Non-SSL'})`);
         } catch (error) {
             console.error('Database connection failed:', error.message);
+            if (this.credentials.ssl) {
+                console.error('SSL Connection Details:', {
+                    ca_provided: !!this.credentials.ssl.ca,
+                    cert_provided: !!this.credentials.ssl.cert,
+                    key_provided: !!this.credentials.ssl.key,
+                    rejectUnauthorized: this.credentials.ssl.rejectUnauthorized
+                });
+            }
             throw error;
         }
     }
@@ -83,7 +108,7 @@ class DatabaseManager {
             const escapedDatabase = this.connection.escapeId(databaseName);
             const escapedTable = this.connection.escapeId(tableName);
             const fullTableName = `${escapedDatabase}.${escapedTable}`;
-            
+
             // Build WHERE clause for search
             let whereClause = '';
             let countWhereClause = '';
@@ -93,7 +118,7 @@ class DatabaseManager {
                 whereClause = ` WHERE ${escapedSearchColumn} LIKE ${escapedSearchValue}`;
                 countWhereClause = whereClause;
             }
-            
+
             // Build ORDER BY clause for sorting
             let orderClause = '';
             if (sortColumn) {
@@ -101,16 +126,16 @@ class DatabaseManager {
                 const direction = sortDirection.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
                 orderClause = ` ORDER BY ${escapedSortColumn} ${direction}`;
             }
-            
+
             // Get total count (with search filter if applied)
             const countQuery = `SELECT COUNT(*) as total FROM ${fullTableName}${countWhereClause}`;
             const [countResult] = await this.connection.query(countQuery);
             const total = countResult[0].total;
-            
+
             // Get data with pagination, sorting, and search
             const dataQuery = `SELECT * FROM ${fullTableName}${whereClause}${orderClause} LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`;
             const [rows] = await this.connection.query(dataQuery);
-            
+
             return {
                 data: rows,
                 total: total,
@@ -133,10 +158,10 @@ class DatabaseManager {
 
         try {
             let finalQuery = query.trim();
-            
+
             // Handle special cases for queries that need database context
             const upperQuery = query.toUpperCase().trim();
-            
+
             if (upperQuery.startsWith('USE ')) {
                 // Handle USE statements by extracting the database name
                 const dbMatch = query.match(/USE\s+`?(\w+)`?/i);
@@ -159,29 +184,29 @@ class DatabaseManager {
                     }
                 }
             }
-            
+
             // Check if query contains multiple statements (separated by semicolons)
             const statements = finalQuery.split(';').map(stmt => stmt.trim()).filter(stmt => stmt.length > 0);
-            
+
             if (statements.length > 1) {
                 // Handle multiple statements
                 let totalAffectedRows = 0;
                 let results = [];
                 let lastInsertId = null;
-                
+
                 // Create database-specific connection if needed
-                const execConnection = databaseName ? 
+                const execConnection = databaseName ?
                     await mysql.createConnection({
                         ...this.credentials,
                         database: databaseName,
                         multipleStatements: true
                     }) : this.connection;
-                
+
                 try {
                     for (const statement of statements) {
                         const [result] = await execConnection.query(statement);
-                        
-                        if (statement.trim().toUpperCase().startsWith('SELECT') || 
+
+                        if (statement.trim().toUpperCase().startsWith('SELECT') ||
                             statement.trim().toUpperCase().startsWith('SHOW') ||
                             statement.trim().toUpperCase().startsWith('DESCRIBE') ||
                             statement.trim().toUpperCase().startsWith('EXPLAIN')) {
@@ -197,7 +222,7 @@ class DatabaseManager {
                             }
                         }
                     }
-                    
+
                     if (results.length > 0) {
                         return {
                             type: 'SELECT',
@@ -219,7 +244,7 @@ class DatabaseManager {
                     }
                 }
             }
-            
+
             // Single statement execution
             if (databaseName) {
                 if (upperQuery.startsWith('SHOW TABLES')) {
@@ -232,12 +257,12 @@ class DatabaseManager {
                         ...this.credentials,
                         database: databaseName
                     });
-                    
+
                     try {
                         const [result] = await dbConnection.query(finalQuery);
-                        
+
                         // Handle different query types
-                        if (finalQuery.trim().toUpperCase().startsWith('SELECT') || 
+                        if (finalQuery.trim().toUpperCase().startsWith('SELECT') ||
                             finalQuery.trim().toUpperCase().startsWith('SHOW') ||
                             finalQuery.trim().toUpperCase().startsWith('DESCRIBE') ||
                             finalQuery.trim().toUpperCase().startsWith('EXPLAIN')) {
@@ -259,12 +284,12 @@ class DatabaseManager {
                     }
                 }
             }
-            
+
             // Execute query without database context (for queries that don't need it)
             const [result] = await this.connection.query(finalQuery);
-            
+
             // Handle different query types
-            if (finalQuery.trim().toUpperCase().startsWith('SELECT') || 
+            if (finalQuery.trim().toUpperCase().startsWith('SELECT') ||
                 finalQuery.trim().toUpperCase().startsWith('SHOW') ||
                 finalQuery.trim().toUpperCase().startsWith('DESCRIBE') ||
                 finalQuery.trim().toUpperCase().startsWith('EXPLAIN')) {
@@ -322,7 +347,7 @@ class DatabaseManager {
             let finalQuery = createTableQuery;
             if (databaseName && !createTableQuery.includes(`${databaseName}.`)) {
                 // This is a simple approach - for production, use a proper SQL parser
-                finalQuery = createTableQuery.replace(/CREATE TABLE\s+`?(\w+)`?/i, 
+                finalQuery = createTableQuery.replace(/CREATE TABLE\s+`?(\w+)`?/i,
                     `CREATE TABLE \`${databaseName}\`.\`$1\``);
             }
             await this.connection.execute(finalQuery);
@@ -356,7 +381,7 @@ class DatabaseManager {
                 ...this.credentials,
                 database: databaseName
             });
-            
+
             try {
                 await dbConnection.query(alterQuery);
             } finally {
@@ -402,7 +427,7 @@ class DatabaseManager {
                 WHERE kcu.TABLE_SCHEMA = ? AND kcu.TABLE_NAME = ?
                 ORDER BY kcu.ORDINAL_POSITION
             `;
-            
+
             const [rows] = await this.connection.query(query, [databaseName, tableName]);
             return rows;
         } catch (error) {
@@ -467,9 +492,9 @@ class DatabaseManager {
 
             if (includeData) {
                 sqlContent += `-- Data for table \`${tableName}\`\n`;
-                
+
                 let dataQuery = `SELECT * FROM \`${databaseName}\`.\`${tableName}\``;
-                
+
                 // Add WHERE clause if provided
                 if (whereClause) {
                     dataQuery += ` WHERE ${whereClause}`;
@@ -487,7 +512,7 @@ class DatabaseManager {
                     if (dataRows.length > 0) {
                         const columns = Object.keys(dataRows[0]);
                         const columnsList = columns.map(col => `\`${col}\``).join(', ');
-                        
+
                         sqlContent += `LOCK TABLES \`${tableName}\` WRITE;\n`;
                         sqlContent += `INSERT INTO \`${tableName}\` (${columnsList}) VALUES\n`;
 
@@ -525,7 +550,7 @@ class DatabaseManager {
             if (whereClause) {
                 query += ` WHERE ${whereClause}`;
             }
-            
+
             const [result] = await this.connection.query(query);
             return result[0].count;
         } catch (error) {

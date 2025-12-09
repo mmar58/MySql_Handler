@@ -33,7 +33,7 @@ const queryResults = document.getElementById('queryResults');
 const queryDatabase = document.getElementById('queryDatabase');
 
 // Initialize the application
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     setupEventListeners();
     setupSocketListeners();
     restoreSessionCredentials();
@@ -44,6 +44,19 @@ function setupEventListeners() {
     connectionForm.addEventListener('submit', handleConnection);
     disconnectBtn.addEventListener('click', handleDisconnection);
     logoutBtn.addEventListener('click', handleLogout);
+
+    // Advanced options toggle
+    document.getElementById('advancedOptionsToggle').addEventListener('click', function () {
+        const advancedOptions = document.getElementById('advancedOptions');
+        const icon = this.querySelector('.toggle-icon');
+        if (advancedOptions.style.display === 'none') {
+            advancedOptions.style.display = 'block';
+            icon.textContent = '▲';
+        } else {
+            advancedOptions.style.display = 'none';
+            icon.textContent = '▼';
+        }
+    });
 
     // Database operations
     document.getElementById('refreshDatabases').addEventListener('click', loadDatabases);
@@ -114,7 +127,7 @@ function setupSocketListeners() {
         showNotification('Connected to database successfully!', 'success');
         showMainInterface();
         loadDatabases();
-        
+
         // Store credentials in session
         if (currentCredentials) {
             fetch('/store-credentials', {
@@ -218,12 +231,30 @@ function setupSocketListeners() {
 function handleConnection(e) {
     e.preventDefault();
     const formData = new FormData(connectionForm);
+
     const credentials = {
         host: formData.get('host'),
         port: parseInt(formData.get('port')),
         user: formData.get('user'),
-        password: formData.get('password')
+        password: formData.get('password'),
+        ssl: null
     };
+
+    // Check for SSL configuration
+    const sslCa = formData.get('sslCa').trim();
+    const sslCert = formData.get('sslCert').trim();
+    const sslKey = formData.get('sslKey').trim();
+    const rejectUnauthorized = document.getElementById('rejectUnauthorized').checked;
+
+    if (sslCa || sslCert || sslKey) {
+        credentials.ssl = {
+            rejectUnauthorized: rejectUnauthorized
+        };
+        if (sslCa) credentials.ssl.ca = sslCa;
+        if (sslCert) credentials.ssl.cert = sslCert;
+        if (sslKey) credentials.ssl.key = sslKey;
+    }
+
     currentCredentials = credentials;
     socket.emit('connect_database', credentials);
     showNotification('Connecting to database...', 'info');
@@ -236,7 +267,7 @@ function handleDisconnection() {
 function updateConnectionStatus(connected) {
     const indicator = connectionStatus.querySelector('.status-indicator');
     const text = connectionStatus.querySelector('span:last-child');
-    
+
     if (connected) {
         indicator.className = 'status-indicator connected';
         text.textContent = 'Connected';
@@ -259,12 +290,12 @@ function showConnectionPanel() {
     connectionPanel.style.display = 'block';
     mainInterface.style.display = 'none';
     logoutBtn.style.display = 'none';
-    
+
     // Hide export buttons
     document.getElementById('exportDatabase').style.display = 'none';
     document.getElementById('exportCurrentData').style.display = 'none';
     document.getElementById('exportSelectedRows').style.display = 'none';
-    
+
     // Reset interface
     currentDatabase = null;
     currentTable = null;
@@ -286,7 +317,7 @@ function loadTables() {
 
 function populateDatabaseList(databases) {
     databaseList.innerHTML = '';
-    
+
     databases.forEach(database => {
         const li = document.createElement('li');
         li.textContent = database;
@@ -298,14 +329,14 @@ function populateDatabaseList(databases) {
 function populateQueryDatabaseSelect(databases) {
     const currentValue = queryDatabase.value;
     queryDatabase.innerHTML = '<option value="">Select Database</option>';
-    
+
     databases.forEach(database => {
         const option = document.createElement('option');
         option.value = database;
         option.textContent = database;
         queryDatabase.appendChild(option);
     });
-    
+
     if (currentValue) {
         queryDatabase.value = currentValue;
     }
@@ -315,24 +346,24 @@ function selectDatabase(database, element) {
     // Update UI
     document.querySelectorAll('.database-list li').forEach(li => li.classList.remove('active'));
     element.classList.add('active');
-    
+
     currentDatabase = database;
     currentTable = null;
-    
+
     // Show export button
     document.getElementById('exportDatabase').style.display = 'inline-block';
-    
+
     // Clear table list and data
     tableList.innerHTML = '';
     clearTableData();
-    
+
     // Load tables for this database
     socket.emit('get_tables', database);
 }
 
 function populateTableList(tables) {
     tableList.innerHTML = '';
-    
+
     tables.forEach(table => {
         const li = document.createElement('li');
         li.textContent = table;
@@ -345,17 +376,17 @@ function selectTable(table, element) {
     // Update UI
     document.querySelectorAll('.table-list li').forEach(li => li.classList.remove('active'));
     element.classList.add('active');
-    
+
     currentTable = table;
     selectedTableSpan.textContent = `${currentDatabase}.${table}`;
-    
+
     // Show export buttons
     document.getElementById('exportCurrentData').style.display = 'inline-block';
     document.getElementById('exportSelectedRows').style.display = 'inline-block';
-    
+
     // Reset pagination
     currentPage = 1;
-    
+
     // Load table data, structure, and indexes
     loadTableData();
     loadTableStructure();
@@ -365,7 +396,7 @@ function selectTable(table, element) {
 
 function loadTableData() {
     if (!currentDatabase || !currentTable) return;
-    
+
     const offset = (currentPage - 1) * pageSize;
     socket.emit('get_table_data', {
         database: currentDatabase,
@@ -381,7 +412,7 @@ function loadTableData() {
 
 function loadTableStructure() {
     if (!currentDatabase || !currentTable) return;
-    
+
     socket.emit('get_table_structure', {
         database: currentDatabase,
         table: currentTable
@@ -390,7 +421,7 @@ function loadTableStructure() {
 
 function loadTableIndexes() {
     if (!currentDatabase || !currentTable) return;
-    
+
     socket.emit('get_table_indexes', {
         database: currentDatabase,
         table: currentTable
@@ -400,37 +431,37 @@ function loadTableIndexes() {
 function populateTableIndexes(indexes) {
     const tbody = indexesTable.querySelector('tbody');
     tbody.innerHTML = '';
-    
+
     indexes.forEach(index => {
         const tr = document.createElement('tr');
-        
+
         const keyName = document.createElement('td');
         keyName.textContent = index.Key_name;
         tr.appendChild(keyName);
-        
+
         const column = document.createElement('td');
         column.textContent = index.Column_name;
         tr.appendChild(column);
-        
+
         const unique = document.createElement('td');
         unique.textContent = index.Non_unique === 0 ? 'Yes' : 'No';
         tr.appendChild(unique);
-        
+
         const type = document.createElement('td');
         type.textContent = index.Index_type;
         tr.appendChild(type);
-        
+
         const cardinality = document.createElement('td');
         cardinality.textContent = index.Cardinality || '';
         tr.appendChild(cardinality);
-        
+
         tbody.appendChild(tr);
     });
 }
 
 function populateAlterFormColumns() {
     if (!currentDatabase || !currentTable) return;
-    
+
     // Get current table structure
     socket.emit('get_table_structure', {
         database: currentDatabase,
@@ -442,23 +473,23 @@ function updateAlterFormColumns(structure) {
     const dropColumnSelect = document.getElementById('dropColumnName');
     const modifyColumnSelect = document.getElementById('modifyColumnName');
     const indexColumnsSelect = document.getElementById('newIndexColumns');
-    
+
     // Clear existing options
     dropColumnSelect.innerHTML = '<option value="">Select Column</option>';
     modifyColumnSelect.innerHTML = '<option value="">Select Column</option>';
     indexColumnsSelect.innerHTML = '';
-    
+
     structure.forEach(field => {
         const dropOption = document.createElement('option');
         dropOption.value = field.Field;
         dropOption.textContent = field.Field;
         dropColumnSelect.appendChild(dropOption);
-        
+
         const modifyOption = document.createElement('option');
         modifyOption.value = field.Field;
         modifyOption.textContent = `${field.Field} (${field.Type})`;
         modifyColumnSelect.appendChild(modifyOption);
-        
+
         const indexOption = document.createElement('option');
         indexOption.value = field.Field;
         indexOption.textContent = field.Field;
@@ -468,117 +499,117 @@ function updateAlterFormColumns(structure) {
 
 function addColumn(e) {
     e.preventDefault();
-    
+
     const columnName = document.getElementById('newColumnName').value.trim();
     const columnType = document.getElementById('newColumnType').value;
     const allowNull = document.getElementById('newColumnNull').checked;
     const defaultValue = document.getElementById('newColumnDefault').value.trim();
     const position = document.getElementById('newColumnPosition').value;
-    
+
     if (!columnName || !columnType) {
         showNotification('Please fill in column name and type', 'error');
         return;
     }
-    
+
     let alterQuery = `ALTER TABLE \`${currentTable}\` ADD COLUMN \`${columnName}\` ${columnType}`;
-    
+
     if (!allowNull) {
         alterQuery += ' NOT NULL';
     }
-    
+
     if (defaultValue) {
         alterQuery += ` DEFAULT '${defaultValue}'`;
     }
-    
+
     if (position === 'FIRST') {
         alterQuery += ' FIRST';
     }
-    
+
     socket.emit('alter_table', {
         database: currentDatabase,
         table: currentTable,
         alterQuery: alterQuery
     });
-    
+
     // Clear form
     document.getElementById('addColumnForm').reset();
 }
 
 function dropColumn(e) {
     e.preventDefault();
-    
+
     const columnName = document.getElementById('dropColumnName').value;
-    
+
     if (!columnName) {
         showNotification('Please select a column to drop', 'error');
         return;
     }
-    
+
     if (!confirm(`Are you sure you want to drop column '${columnName}'? This action cannot be undone.`)) {
         return;
     }
-    
+
     const alterQuery = `ALTER TABLE \`${currentTable}\` DROP COLUMN \`${columnName}\``;
-    
+
     socket.emit('alter_table', {
         database: currentDatabase,
         table: currentTable,
         alterQuery: alterQuery
     });
-    
+
     // Clear form
     document.getElementById('dropColumnForm').reset();
 }
 
 function modifyColumn(e) {
     e.preventDefault();
-    
+
     const columnName = document.getElementById('modifyColumnName').value;
     const columnType = document.getElementById('modifyColumnType').value;
     const allowNull = document.getElementById('modifyColumnNull').checked;
     const defaultValue = document.getElementById('modifyColumnDefault').value.trim();
-    
+
     if (!columnName || !columnType) {
         showNotification('Please select column and specify new type', 'error');
         return;
     }
-    
+
     let alterQuery = `ALTER TABLE \`${currentTable}\` MODIFY COLUMN \`${columnName}\` ${columnType}`;
-    
+
     if (!allowNull) {
         alterQuery += ' NOT NULL';
     }
-    
+
     if (defaultValue) {
         alterQuery += ` DEFAULT '${defaultValue}'`;
     }
-    
+
     socket.emit('alter_table', {
         database: currentDatabase,
         table: currentTable,
         alterQuery: alterQuery
     });
-    
+
     // Clear form
     document.getElementById('modifyColumnForm').reset();
 }
 
 function addIndex(e) {
     e.preventDefault();
-    
+
     const indexName = document.getElementById('newIndexName').value.trim();
     const selectedColumns = Array.from(document.getElementById('newIndexColumns').selectedOptions)
         .map(option => option.value);
     const indexType = document.getElementById('newIndexType').value;
-    
+
     if (!indexName || selectedColumns.length === 0) {
         showNotification('Please specify index name and select columns', 'error');
         return;
     }
-    
+
     const columnsStr = selectedColumns.map(col => `\`${col}\``).join(', ');
     let alterQuery;
-    
+
     if (indexType === 'UNIQUE') {
         alterQuery = `ALTER TABLE \`${currentTable}\` ADD UNIQUE KEY \`${indexName}\` (${columnsStr})`;
     } else if (indexType === 'FULLTEXT') {
@@ -586,33 +617,33 @@ function addIndex(e) {
     } else {
         alterQuery = `ALTER TABLE \`${currentTable}\` ADD KEY \`${indexName}\` (${columnsStr})`;
     }
-    
+
     socket.emit('alter_table', {
         database: currentDatabase,
         table: currentTable,
         alterQuery: alterQuery
     });
-    
+
     // Clear form
     document.getElementById('addIndexForm').reset();
 }
 
 function executeCustomAlter(e) {
     e.preventDefault();
-    
+
     const customQuery = document.getElementById('customAlterQuery').value.trim();
-    
+
     if (!customQuery) {
         showNotification('Please enter an ALTER statement', 'error');
         return;
     }
-    
+
     socket.emit('alter_table', {
         database: currentDatabase,
         table: currentTable,
         alterQuery: customQuery
     });
-    
+
     // Clear form
     document.getElementById('customAlterForm').reset();
 }
@@ -622,13 +653,13 @@ function dropTable() {
         showNotification('No table selected', 'error');
         return;
     }
-    
+
     const confirmation = prompt(`Type '${currentTable}' to confirm dropping this table:`);
     if (confirmation !== currentTable) {
         showNotification('Table name confirmation failed', 'error');
         return;
     }
-    
+
     socket.emit('drop_table', {
         database: currentDatabase,
         table: currentTable
@@ -638,64 +669,64 @@ function dropTable() {
 function populateTableData(data) {
     const thead = dataTable.querySelector('thead');
     const tbody = dataTable.querySelector('tbody');
-    
+
     // Clear existing data
     thead.innerHTML = '';
     tbody.innerHTML = '';
-    
+
     // Debug logging
     console.log('Table data received:', data);
-    
+
     // Check if data exists and has the expected structure
     if (!data || !data.data) {
         tbody.innerHTML = '<tr><td colspan="100%">No data structure received</td></tr>';
         return;
     }
-    
+
     if (data.data.length === 0) {
         tbody.innerHTML = '<tr><td colspan="100%">No data found</td></tr>';
         return;
     }
-    
+
     // Check if first row exists and is an object
     if (!data.data[0] || typeof data.data[0] !== 'object') {
         tbody.innerHTML = '<tr><td colspan="100%">Invalid data format received</td></tr>';
         console.error('Invalid data format:', data.data[0]);
         return;
     }
-    
+
     // Create header with sorting functionality
     const headerRow = document.createElement('tr');
     const columns = Object.keys(data.data[0]);
-    
+
     columns.forEach(column => {
         const th = document.createElement('th');
         th.className = 'sortable-header';
         th.textContent = column;
         th.setAttribute('data-column', column);
-        
+
         // Add sort indicator if this column is currently sorted
         if (data.sortColumn === column) {
             const indicator = document.createElement('span');
             indicator.className = `sort-indicator ${data.sortDirection.toLowerCase()}`;
             th.appendChild(indicator);
         }
-        
+
         // Add click handler for sorting
         th.addEventListener('click', () => sortByColumn(column));
-        
+
         headerRow.appendChild(th);
     });
-    
+
     thead.appendChild(headerRow);
-    
+
     // Update search column dropdown
     updateSearchColumns(columns);
 
     // Create data rows
     data.data.forEach(row => {
         const tr = document.createElement('tr');
-        
+
         // Add row copy button
         const rowCopyBtn = document.createElement('button');
         rowCopyBtn.className = 'row-copy-btn';
@@ -706,11 +737,11 @@ function populateTableData(data) {
             copyRowData(row, e.target);
         });
         tr.appendChild(rowCopyBtn);
-        
+
         columns.forEach(column => {
             const td = document.createElement('td');
             const value = row[column];
-            
+
             // Handle null values
             if (value === null) {
                 td.textContent = 'NULL';
@@ -719,7 +750,7 @@ function populateTableData(data) {
                 td.className = 'data-cell';
             } else {
                 const stringValue = String(value);
-                
+
                 // Determine content type and apply appropriate styling
                 if (typeof value === 'number') {
                     td.textContent = stringValue;
@@ -743,7 +774,7 @@ function populateTableData(data) {
                     td.className = 'data-cell text-content';
                 }
             }
-            
+
             // Add cell copy button
             const cellCopyBtn = document.createElement('button');
             cellCopyBtn.className = 'cell-copy-btn';
@@ -754,43 +785,43 @@ function populateTableData(data) {
                 copyCellData(value, e.target);
             });
             td.appendChild(cellCopyBtn);
-            
+
             tr.appendChild(td);
         });
-        
+
         tbody.appendChild(tr);
     });
-    
+
     // Show search info if search is active
     updateSearchInfo(data);
-    
+
     // Check if table is horizontally scrollable and add indicator
     addScrollIndicator(dataTable.closest('.table-container'));
 }
 
 function addScrollIndicator(tableContainer) {
     if (!tableContainer) return;
-    
+
     // Remove existing indicator
     const existingIndicator = tableContainer.querySelector('.scroll-indicator');
     if (existingIndicator) {
         existingIndicator.remove();
     }
-    
+
     // Check if content is wider than container
     const table = tableContainer.querySelector('table');
     if (table && table.scrollWidth > tableContainer.clientWidth) {
         tableContainer.classList.add('scrollable');
-        
+
         // Create scroll indicator element
         const indicator = document.createElement('div');
         indicator.className = 'scroll-indicator';
         indicator.textContent = '↔ Scroll horizontally to view all columns';
-        
+
         // Position the indicator relative to the container
         tableContainer.style.position = 'relative';
         tableContainer.appendChild(indicator);
-        
+
         // Auto-hide after 4 seconds
         setTimeout(() => {
             if (indicator.parentElement) {
@@ -803,7 +834,7 @@ function addScrollIndicator(tableContainer) {
                 }, 500);
             }
         }, 4000);
-        
+
         // Add scroll listener to show progress indicator
         let scrollTimeout;
         tableContainer.addEventListener('scroll', (e) => {
@@ -811,18 +842,18 @@ function addScrollIndicator(tableContainer) {
             if (scrollTimeout) {
                 clearTimeout(scrollTimeout);
             }
-            
+
             // Show scroll progress if user is scrolling horizontally
             if (e.target.scrollLeft > 0) {
                 showScrollProgress(tableContainer, e.target.scrollLeft, e.target.scrollWidth - e.target.clientWidth);
             }
-            
+
             // Hide progress after scrolling stops
             scrollTimeout = setTimeout(() => {
                 hideScrollProgress(tableContainer);
             }, 1000);
         });
-        
+
     } else {
         tableContainer.classList.remove('scrollable');
     }
@@ -830,7 +861,7 @@ function addScrollIndicator(tableContainer) {
 
 function showScrollProgress(container, scrollLeft, maxScroll) {
     let progressBar = container.querySelector('.scroll-progress');
-    
+
     if (!progressBar) {
         progressBar = document.createElement('div');
         progressBar.className = 'scroll-progress';
@@ -841,7 +872,7 @@ function showScrollProgress(container, scrollLeft, maxScroll) {
             <div class="scroll-progress-text">Scrolling...</div>
         `;
         container.appendChild(progressBar);
-        
+
         // Add CSS for progress bar if not exists
         if (!document.querySelector('#scroll-progress-styles')) {
             const style = document.createElement('style');
@@ -878,12 +909,12 @@ function showScrollProgress(container, scrollLeft, maxScroll) {
             document.head.appendChild(style);
         }
     }
-    
+
     // Update progress
     const progressPercentage = (scrollLeft / maxScroll) * 100;
     const fill = progressBar.querySelector('.scroll-progress-fill');
     fill.style.width = progressPercentage + '%';
-    
+
     progressBar.style.opacity = '1';
 }
 
@@ -902,16 +933,16 @@ function hideScrollProgress(container) {
 function updateSearchColumns(columns) {
     const searchColumnSelect = document.getElementById('searchColumn');
     const currentValue = searchColumnSelect.value;
-    
+
     searchColumnSelect.innerHTML = '<option value="">Search Column</option>';
-    
+
     columns.forEach(column => {
         const option = document.createElement('option');
         option.value = column;
         option.textContent = column;
         searchColumnSelect.appendChild(option);
     });
-    
+
     if (currentValue && columns.includes(currentValue)) {
         searchColumnSelect.value = currentValue;
     }
@@ -923,13 +954,13 @@ function updateSearchInfo(data) {
     if (existingInfo) {
         existingInfo.remove();
     }
-    
+
     // Add search info if search is active
     if (data.searchColumn && data.searchValue) {
         const searchInfo = document.createElement('div');
         searchInfo.className = 'search-info';
         searchInfo.textContent = `Showing results for "${data.searchValue}" in column "${data.searchColumn}" (${data.total} matches)`;
-        
+
         const dataControls = document.querySelector('.data-controls');
         dataControls.insertAdjacentElement('afterend', searchInfo);
     }
@@ -944,7 +975,7 @@ function sortByColumn(column) {
         currentSortColumn = column;
         currentSortDirection = 'ASC';
     }
-    
+
     // Reset to first page when sorting
     currentPage = 1;
     loadTableData();
@@ -953,21 +984,21 @@ function sortByColumn(column) {
 function performSearch() {
     const searchColumn = document.getElementById('searchColumn').value;
     const searchValue = document.getElementById('searchValue').value.trim();
-    
+
     if (!searchColumn && searchValue) {
         showNotification('Please select a column to search in', 'error');
         return;
     }
-    
+
     if (searchColumn && !searchValue) {
         showNotification('Please enter a search value', 'error');
         return;
     }
-    
+
     currentSearchColumn = searchColumn || null;
     currentSearchValue = searchValue || null;
     currentPage = 1; // Reset to first page when searching
-    
+
     // Update search input styling
     const searchInput = document.getElementById('searchValue');
     if (searchValue) {
@@ -975,7 +1006,7 @@ function performSearch() {
     } else {
         searchInput.classList.remove('search-active');
     }
-    
+
     loadTableData();
 }
 
@@ -983,27 +1014,27 @@ function clearSearch() {
     document.getElementById('searchColumn').value = '';
     document.getElementById('searchValue').value = '';
     document.getElementById('searchValue').classList.remove('search-active');
-    
+
     currentSearchColumn = null;
     currentSearchValue = null;
     currentPage = 1;
-    
+
     // Remove search info
     const existingInfo = document.querySelector('.search-info');
     if (existingInfo) {
         existingInfo.remove();
     }
-    
+
     loadTableData();
 }
 
 function populateTableStructure(structure) {
     const tbody = structureTable.querySelector('tbody');
     tbody.innerHTML = '';
-    
+
     structure.forEach(field => {
         const tr = document.createElement('tr');
-        
+
         // Add row copy button
         const rowCopyBtn = document.createElement('button');
         rowCopyBtn.className = 'row-copy-btn';
@@ -1014,17 +1045,17 @@ function populateTableStructure(structure) {
             copyRowData(field, e.target);
         });
         tr.appendChild(rowCopyBtn);
-        
+
         ['Field', 'Type', 'Null', 'Key', 'Default', 'Extra'].forEach((prop, index) => {
             const td = document.createElement('td');
             const value = field[prop];
-            
+
             if (value === null || value === '') {
                 td.textContent = '';
                 td.style.color = '#888';
             } else {
                 const stringValue = String(value);
-                
+
                 // Apply specific styling based on column type
                 switch (index) {
                     case 0: // Field name
@@ -1054,7 +1085,7 @@ function populateTableStructure(structure) {
                         td.className = 'text-content';
                 }
             }
-            
+
             // Add cell copy button
             const cellCopyBtn = document.createElement('button');
             cellCopyBtn.className = 'cell-copy-btn';
@@ -1065,16 +1096,16 @@ function populateTableStructure(structure) {
                 copyCellData(value, e.target);
             });
             td.appendChild(cellCopyBtn);
-            
+
             tr.appendChild(td);
         });
-        
+
         tbody.appendChild(tr);
     });
-    
+
     // Update alter form columns
     updateAlterFormColumns(structure);
-    
+
     // Add scroll indicator if needed
     addScrollIndicator(structureTable.closest('.table-container'));
 }
@@ -1082,7 +1113,7 @@ function populateTableStructure(structure) {
 function updatePagination(data) {
     totalPages = Math.ceil(data.total / data.limit);
     pageInfo.textContent = `Page ${currentPage} of ${totalPages} (${data.total} total rows)`;
-    
+
     document.getElementById('prevPage').disabled = currentPage <= 1;
     document.getElementById('nextPage').disabled = currentPage >= totalPages;
 }
@@ -1112,7 +1143,7 @@ function switchTab(tabName) {
     // Update tab buttons
     document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
     document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-    
+
     // Update tab content
     document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
     document.getElementById(`${tabName}Tab`).classList.add('active');
@@ -1121,37 +1152,37 @@ function switchTab(tabName) {
 function executeQuery() {
     const query = sqlQuery.value.trim();
     const database = queryDatabase.value;
-    
+
     if (!query) {
         showNotification('Please enter a SQL query', 'error');
         return;
     }
-    
+
     socket.emit('execute_query', { database, query });
     queryResults.innerHTML = '<p>Executing query...</p>';
 }
 
 function displayQueryResult(data) {
     const { query, result } = data;
-    
+
     let html = `<div class="query-info"><strong>Query:</strong> ${query}</div>`;
-    
+
     if (result.type === 'SELECT') {
         if (result.multipleStatements) {
             // Handle multiple SELECT statements
             html += `<p><strong>Multiple statements executed:</strong> ${result.data.length}</p>`;
             html += `<p><strong>Total rows returned:</strong> ${result.rowCount}</p>`;
-            
+
             result.data.forEach((statementResult, index) => {
                 html += `<div class="statement-result">`;
                 html += `<h4>Statement ${index + 1}: ${statementResult.statement}</h4>`;
-                
+
                 if (statementResult.data.length === 0) {
                     html += '<p>No results found.</p>';
                 } else {
                     html += `<p><strong>Rows:</strong> ${statementResult.rowCount}</p>`;
                     html += '<div class="table-container"><table>';
-                    
+
                     // Header
                     const columns = Object.keys(statementResult.data[0]);
                     html += '<thead><tr>';
@@ -1159,7 +1190,7 @@ function displayQueryResult(data) {
                         html += `<th>${col}</th>`;
                     });
                     html += '</tr></thead>';
-                    
+
                     // Data
                     html += '<tbody>';
                     statementResult.data.forEach(row => {
@@ -1172,7 +1203,7 @@ function displayQueryResult(data) {
                                 const stringValue = String(value);
                                 let cellClass = 'data-cell';
                                 let displayValue = stringValue;
-                                
+
                                 if (typeof value === 'number') {
                                     cellClass += ' numeric-content';
                                 } else if (stringValue.length > 100) {
@@ -1201,7 +1232,7 @@ function displayQueryResult(data) {
             } else {
                 html += `<p><strong>Rows returned:</strong> ${result.rowCount}</p>`;
                 html += '<div class="table-container"><table>';
-                
+
                 // Header
                 const columns = Object.keys(result.data[0]);
                 html += '<thead><tr>';
@@ -1209,7 +1240,7 @@ function displayQueryResult(data) {
                     html += `<th>${col}</th>`;
                 });
                 html += '</tr></thead>';
-                
+
                 // Data
                 html += '<tbody>';
                 result.data.forEach(row => {
@@ -1222,7 +1253,7 @@ function displayQueryResult(data) {
                             const stringValue = String(value);
                             let cellClass = 'data-cell';
                             let displayValue = stringValue;
-                            
+
                             if (typeof value === 'number') {
                                 cellClass += ' numeric-content';
                                 html += `<td class="${cellClass}" data-cell-value="${displayValue}">${displayValue}<button class="cell-copy-btn">📋</button></td>`;
@@ -1250,15 +1281,15 @@ function displayQueryResult(data) {
             html += `<p><strong>Insert ID:</strong> ${result.insertId}</p>`;
         }
         html += `<p class="success-message">${result.message}</p>`;
-        
+
         // Refresh data if we're viewing a table and it might have been affected
         if (currentTable && currentDatabase) {
             loadTableData();
         }
     }
-    
+
     queryResults.innerHTML = html;
-    
+
     // Add event listeners for copy buttons in query results
     queryResults.querySelectorAll('.cell-copy-btn').forEach(button => {
         button.addEventListener('click', (e) => {
@@ -1285,13 +1316,13 @@ function closeModal(modalId) {
 
 function createDatabase(e) {
     e.preventDefault();
-    
+
     const databaseName = document.getElementById('newDatabaseName').value.trim();
     if (!databaseName) {
         showNotification('Please enter a database name', 'error');
         return;
     }
-    
+
     socket.emit('create_database', databaseName);
 }
 
@@ -1299,12 +1330,12 @@ function showNotification(message, type = 'info') {
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
     notification.textContent = message;
-    
+
     document.getElementById('notifications').appendChild(notification);
-    
+
     // Trigger animation
     setTimeout(() => notification.classList.add('show'), 100);
-    
+
     // Remove after 5 seconds
     setTimeout(() => {
         notification.classList.remove('show');
@@ -1325,7 +1356,7 @@ document.addEventListener('keydown', (e) => {
     if (e.ctrlKey && e.key === 'Enter' && document.activeElement === sqlQuery) {
         executeQuery();
     }
-    
+
     // Escape to close modals
     if (e.key === 'Escape') {
         document.querySelectorAll('.modal').forEach(modal => {
@@ -1338,7 +1369,7 @@ function handleLogout() {
     if (isConnected) {
         socket.emit('disconnect_database');
     }
-    
+
     fetch('/logout', { method: 'POST' })
         .then(res => res.json())
         .then(data => {
@@ -1349,16 +1380,16 @@ function handleLogout() {
                 logoutBtn.style.display = 'none';
                 disconnectBtn.style.display = 'none';
                 connectionStatus.innerHTML = '<span class="status-indicator disconnected"></span><span>Disconnected</span>';
-                
+
                 // Reset global state
                 isConnected = false;
                 currentCredentials = null;
                 currentDatabase = null;
                 currentTable = null;
-                
+
                 // Clear form
                 connectionForm.reset();
-                
+
                 showNotification('Logged out successfully', 'info');
             }
         });
@@ -1372,7 +1403,7 @@ function restoreSessionCredentials() {
                 // Fill the form
                 document.getElementById('user').value = data.username;
                 document.getElementById('password').value = data.password;
-                
+
                 // Auto-connect
                 const credentials = {
                     host: document.getElementById('host').value,
@@ -1424,7 +1455,7 @@ function copyRowData(rowData, buttonElement) {
     try {
         // Format row data as JSON
         const jsonData = JSON.stringify(rowData, null, 2);
-        
+
         // Copy as JSON format only
         navigator.clipboard.writeText(jsonData).then(() => {
             showNotification('Row data copied to clipboard (JSON format)', 'success');
@@ -1444,7 +1475,7 @@ function copyRowData(rowData, buttonElement) {
 function copyCellData(cellValue, buttonElement) {
     try {
         const textValue = cellValue === null ? 'NULL' : String(cellValue);
-        
+
         navigator.clipboard.writeText(textValue).then(() => {
             showNotification(`Cell data copied: "${textValue.length > 50 ? textValue.substring(0, 50) + '...' : textValue}"`, 'success');
             if (buttonElement) animateCopySuccess(buttonElement);
@@ -1478,13 +1509,13 @@ function fallbackCopyText(text) {
     document.body.appendChild(textArea);
     textArea.focus();
     textArea.select();
-    
+
     try {
         document.execCommand('copy');
     } catch (err) {
         console.error('Fallback copy failed:', err);
     }
-    
+
     document.body.removeChild(textArea);
 }
 
@@ -1494,12 +1525,12 @@ function showExportDatabaseModal() {
         showNotification('Please select a database first', 'error');
         return;
     }
-    
+
     document.getElementById('exportDbName').textContent = currentDatabase;
-    
+
     // Load tables for selection
     socket.emit('get_tables', currentDatabase);
-    
+
     // Show modal after tables are loaded
     setTimeout(() => {
         populateExportTablesList();
@@ -1512,7 +1543,7 @@ function showExportTableModal() {
         showNotification('Please select a table first', 'error');
         return;
     }
-    
+
     document.getElementById('exportTableName').textContent = `${currentDatabase}.${currentTable}`;
     document.getElementById('exportTableModal').style.display = 'block';
 }
@@ -1520,25 +1551,25 @@ function showExportTableModal() {
 function populateExportTablesList() {
     const container = document.getElementById('exportTablesList');
     container.innerHTML = '';
-    
+
     // Get tables from the sidebar
     const tableItems = document.querySelectorAll('.table-list li');
     tableItems.forEach(item => {
         const tableName = item.textContent;
-        
+
         const div = document.createElement('div');
         div.className = 'export-table-item';
-        
+
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.value = tableName;
         checkbox.id = `export_table_${tableName}`;
         checkbox.checked = true;
-        
+
         const label = document.createElement('label');
         label.htmlFor = `export_table_${tableName}`;
         label.textContent = tableName;
-        
+
         div.appendChild(checkbox);
         div.appendChild(label);
         container.appendChild(div);
@@ -1575,7 +1606,7 @@ function previewRowCount() {
         showNotification('Please enter a WHERE clause', 'error');
         return;
     }
-    
+
     socket.emit('get_row_count', {
         database: currentDatabase,
         table: currentTable,
@@ -1585,18 +1616,18 @@ function previewRowCount() {
 
 function exportDatabase(e) {
     e.preventDefault();
-    
+
     const includeData = document.getElementById('exportIncludeData').checked;
     const selectedTables = Array.from(document.querySelectorAll('#exportTablesList input[type="checkbox"]:checked'))
         .map(cb => cb.value);
-    
+
     if (selectedTables.length === 0) {
         showNotification('Please select at least one table to export', 'error');
         return;
     }
-    
+
     showNotification('Exporting database... This may take a moment.', 'info');
-    
+
     socket.emit('export_database', {
         database: currentDatabase,
         options: {
@@ -1608,14 +1639,14 @@ function exportDatabase(e) {
 
 function exportTable(e) {
     e.preventDefault();
-    
+
     const includeData = document.getElementById('exportTableIncludeData').checked;
     const dataExportType = document.querySelector('input[name="dataExportType"]:checked').value;
-    
+
     let options = {
         includeData: includeData
     };
-    
+
     if (includeData) {
         if (dataExportType === 'current') {
             // Use current search/filter conditions
@@ -1630,9 +1661,9 @@ function exportTable(e) {
         }
         // For 'all', no additional options needed
     }
-    
+
     showNotification('Exporting table... This may take a moment.', 'info');
-    
+
     socket.emit('export_table', {
         database: currentDatabase,
         table: currentTable,
@@ -1659,15 +1690,15 @@ function exportCurrentData() {
         showNotification('Please select a table first', 'error');
         return;
     }
-    
+
     // Quick export of current filtered data
     let options = {
         includeData: true,
         whereClause: buildCurrentWhereClause()
     };
-    
+
     showNotification('Exporting current data... This may take a moment.', 'info');
-    
+
     socket.emit('export_table', {
         database: currentDatabase,
         table: currentTable,
@@ -1678,26 +1709,26 @@ function exportCurrentData() {
 function downloadFile(filename, content) {
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
-    
+
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
     a.style.display = 'none';
-    
+
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    
+
     URL.revokeObjectURL(url);
 }
 
 function formatFileSize(bytes) {
     if (bytes === 0) return '0 Bytes';
-    
+
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    
+
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
