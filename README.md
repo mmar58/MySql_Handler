@@ -13,6 +13,7 @@ A powerful, real-time web-based MySQL database management tool built with modern
 
 * **Real-time Connection Management**: Connect/disconnect from MySQL databases with live status updates
 * **Secure Authentication**: Support for username/password authentication with configurable host and port
+* **SSL/TLS Support**: Secure connections with SSL CA, Client Certificate, and Key support
 * **Connection Persistence**: Maintains active connections per user session
 * **Multi-user Support**: Handles multiple concurrent database connections
 
@@ -33,6 +34,7 @@ A powerful, real-time web-based MySQL database management tool built with modern
 * **Smart Scroll Indicators**: Visual indicators for horizontally scrollable content
 * **Copy Functionality**: One-click copy for individual cells and entire rows
 * **Long Text Handling**: Truncated display with hover tooltips for large text content
+* **Column Interactions**: Copy individual cell data or entire rows easily
 
 ### 🔧 **Table Structure Management**
 
@@ -45,7 +47,7 @@ A powerful, real-time web-based MySQL database management tool built with modern
 ### 📝 **SQL Query Interface**
 
 * **Multi-query Execution**: Execute multiple SQL statements in a single operation
-* **Enhanced Query Input**: Large text area with proper formatting
+* **Enhanced Query Input**: Large, full-width text area for writing complex queries
 * **Query Results Display**: Formatted results with proper data type handling
 * **Database Selection**: Choose target database for query execution
 * **Error Handling**: Detailed error messages with clear feedback
@@ -62,10 +64,12 @@ A powerful, real-time web-based MySQL database management tool built with modern
 * **Multiple Formats**: SQL dump format with proper MySQL syntax
 * **Automatic Downloads**: Browser-based file downloads with timestamped names
 
-### 🎨 **Modern User Interface**
+### 🎨 **Modern Premium User Interface**
 
+* **Premium Design**: Modern, clean aesthetic with 'Inter' and 'Outfit' typography
+* **Dark Sidebar**: Professional contrast with a sleek dark sidebar
 * **Tabbed Interface**: Organized tabs for Data, Structure, Indexes, Alter Table, and SQL Query
-* **Responsive Design**: Works seamlessly on desktop, tablet, and mobile devices
+* **Responsive Layouts**: Works seamlessly on all screen sizes with smart overflow handling
 * **Real-time Notifications**: Toast notifications for all operations
 * **Loading States**: Visual feedback during data loading operations
 * **Modal Dialogs**: User-friendly modals for complex operations
@@ -81,7 +85,7 @@ A powerful, real-time web-based MySQL database management tool built with modern
 * **Node.js**: Server runtime environment
 * **Express.js**: Web application framework
 * **Socket.IO**: Real-time bidirectional communication
-* **MySQL2**: MySQL database driver with Promise support
+* **MySQL2**: MySQL database driver with Promise and SSL support
 * **Express Session**: Session management for credential persistence
 * **CORS**: Cross-origin resource sharing middleware
 * **Custom DatabaseManager**: Comprehensive database operation handler
@@ -89,7 +93,7 @@ A powerful, real-time web-based MySQL database management tool built with modern
 ### **Frontend**
 
 * **HTML5**: Modern semantic markup with accessibility features
-* **CSS3**: Advanced styling with Flexbox, Grid, and animations
+* **CSS3**: Advanced styling with Flexbox, Grid, custom properties, and animations
 * **Vanilla JavaScript**: No framework dependencies, pure JS implementation
 * **Socket.IO Client**: Real-time communication with the server
 * **Clipboard API**: Modern copy functionality with fallback support
@@ -101,6 +105,7 @@ A powerful, real-time web-based MySQL database management tool built with modern
 * **MySQL**: Primary database system (v5.7+ recommended)
 * **Prepared Statements**: SQL injection protection
 * **Connection Pooling**: Efficient connection management
+* **SSL Connections**: Secure data transmission supported
 
 ## 📁 Project Structure
 
@@ -113,7 +118,7 @@ mysql_handler/
 │   └── public/
 │       ├── index.html         # Main UI interface
 │       ├── app.js             # Frontend JavaScript logic
-│       └── style.css          # Responsive CSS styling
+│       └── style.css          # Premium Responsive CSS styling
 ├── package.json               # Project dependencies and scripts
 └── README.md                  # This file
 ```
@@ -173,8 +178,14 @@ NODE_ENV=production
    * **Port**: MySQL port number (default: 3306)
    * **Username**: Your MySQL username
    * **Password**: Your MySQL password
-2. **Click Connect**: The application will establish a real-time connection
-3. **Browse Databases**: Available databases will appear in the left sidebar
+2. **Advanced Options (SSL)**:
+   * Click the toggle to reveal SSL settings.
+   * **SSL CA Certificate**: Paste your CA certificate content.
+   * **SSL Client Certificate**: Paste your client certificate content.
+   * **SSL Client Key**: Paste your client key content.
+   * **Reject Unauthorized**: Check to verify server integrity (recommended).
+3. **Click Connect**: The application will establish a real-time connection
+4. **Browse Databases**: Available databases will appear in the left sidebar
 
 ### 📋 **Managing Data**
 
