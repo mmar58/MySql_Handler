@@ -15,6 +15,7 @@ A powerful, real-time web-based MySQL database management tool built with modern
 * **Secure Authentication**: Support for username/password authentication with configurable host and port
 * **SSL/TLS Support**: Secure connections with SSL CA, Client Certificate, and Key support
 * **Connection Persistence**: Maintains active connections per user session
+* **Saved Configurations**: Locally save and manage frequently used connection profiles
 * **Multi-user Support**: Handles multiple concurrent database connections
 
 ### 🗃️ **Database Management**
@@ -178,6 +179,7 @@ NODE_ENV=production
    * **Port**: MySQL port number (default: 3306)
    * **Username**: Your MySQL username
    * **Password**: Your MySQL password
+   * **Save Connection**: Check this box to save credentials locally for quick access later.
 2. **Advanced Options (SSL)**:
    * Click the toggle to reveal SSL settings.
    * **SSL CA Certificate**: Paste your CA certificate content.
@@ -185,7 +187,11 @@ NODE_ENV=production
    * **SSL Client Key**: Paste your client key content.
    * **Reject Unauthorized**: Check to verify server integrity (recommended).
 3. **Click Connect**: The application will establish a real-time connection
-4. **Browse Databases**: Available databases will appear in the left sidebar
+4. **Saved Connections**:
+   * Previously saved connections appear in a dropdown menu.
+   * Select a saved connection to auto-fill the form.
+   * Use the "Delete" (X) button to remove old configurations.
+5. **Browse Databases**: Available databases will appear in the left sidebar
 
 ### 📋 **Managing Data**
 
