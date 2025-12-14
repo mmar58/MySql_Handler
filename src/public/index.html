@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +8,7 @@
     <link rel="stylesheet" href="style.css">
     <script src="/socket.io/socket.io.js"></script>
 </head>
+
 <body>
     <div class="container">
         <header>
@@ -24,10 +26,22 @@
         <div class="connection-panel" id="connectionPanel">
             <h2>Database Connection</h2>
             <form id="connectionForm">
+                <div class="saved-connections-wrapper" id="savedConnectionsWrapper" style="display: none;">
+                    <label for="savedConnections">Saved Connections</label>
+                    <div class="saved-connections-controls">
+                        <select id="savedConnections">
+                            <option value="">Select a saved connection...</option>
+                        </select>
+                        <button type="button" id="deleteSavedConnectionBtn" class="btn btn-danger btn-small"
+                            title="Delete Saved Connection">✕</button>
+                    </div>
+                </div>
+
                 <div class="form-row">
                     <div class="form-group half-width">
                         <label for="host">Host</label>
-                        <input type="text" id="host" name="host" value="localhost" required placeholder="e.g. 127.0.0.1">
+                        <input type="text" id="host" name="host" value="localhost" required
+                            placeholder="e.g. 127.0.0.1">
                     </div>
                     <div class="form-group half-width">
                         <label for="port">Port</label>
@@ -44,7 +58,7 @@
                         <input type="password" id="password" name="password" required placeholder="••••••••">
                     </div>
                 </div>
-                
+
                 <div class="advanced-options-toggle" id="advancedOptionsToggle">
                     <span>Advanced Options (SSL)</span>
                     <span class="toggle-icon">▼</span>
@@ -69,9 +83,15 @@
                     </div>
                 </div>
 
+                <div class="form-group checkbox-group save-connection-group">
+                    <input type="checkbox" id="saveConnection" name="saveConnection">
+                    <label for="saveConnection">Save Connection Details</label>
+                </div>
+
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary btn-block">Connect to Database</button>
-                    <button type="button" id="disconnectBtn" class="btn btn-danger btn-block" style="display: none;">Disconnect</button>
+                    <button type="button" id="disconnectBtn" class="btn btn-danger btn-block"
+                        style="display: none;">Disconnect</button>
                 </div>
             </form>
         </div>
@@ -84,11 +104,12 @@
                     <div class="database-controls">
                         <button id="refreshDatabases" class="btn btn-small">Refresh</button>
                         <button id="createDatabase" class="btn btn-small btn-success">Create DB</button>
-                        <button id="exportDatabase" class="btn btn-small btn-primary" style="display: none;">Export DB</button>
+                        <button id="exportDatabase" class="btn btn-small btn-primary" style="display: none;">Export
+                            DB</button>
                     </div>
                     <ul id="databaseList" class="database-list"></ul>
                 </div>
-                
+
                 <div class="table-section">
                     <h3>Tables</h3>
                     <div class="table-controls">
@@ -121,8 +142,10 @@
                                 <button id="clearSearchBtn" class="btn btn-secondary btn-small">Clear</button>
                             </div>
                             <div class="data-export-controls">
-                                <button id="exportSelectedRows" class="btn btn-success btn-small" style="display: none;">Export Selected</button>
-                                <button id="exportCurrentData" class="btn btn-primary btn-small" style="display: none;">Export Current Data</button>
+                                <button id="exportSelectedRows" class="btn btn-success btn-small"
+                                    style="display: none;">Export Selected</button>
+                                <button id="exportCurrentData" class="btn btn-primary btn-small"
+                                    style="display: none;">Export Current Data</button>
                             </div>
                             <div class="pagination-controls">
                                 <button id="prevPage" class="btn btn-small">Previous</button>
@@ -228,7 +251,8 @@
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label>Default Value:</label>
-                                        <input type="text" id="newColumnDefault" placeholder="Leave empty for no default">
+                                        <input type="text" id="newColumnDefault"
+                                            placeholder="Leave empty for no default">
                                     </div>
                                     <div class="form-group">
                                         <label>Position:</label>
@@ -298,7 +322,8 @@
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label>Default Value:</label>
-                                        <input type="text" id="modifyColumnDefault" placeholder="Leave empty for no default">
+                                        <input type="text" id="modifyColumnDefault"
+                                            placeholder="Leave empty for no default">
                                     </div>
                                     <div class="form-group">
                                         <button type="submit" class="btn btn-primary">Modify Column</button>
@@ -342,7 +367,8 @@
                             <form id="customAlterForm" class="alter-form">
                                 <div class="form-group">
                                     <label>ALTER TABLE Statement:</label>
-                                    <textarea id="customAlterQuery" placeholder="ALTER TABLE table_name ADD COLUMN ..." rows="3"></textarea>
+                                    <textarea id="customAlterQuery" placeholder="ALTER TABLE table_name ADD COLUMN ..."
+                                        rows="3"></textarea>
                                 </div>
                                 <div class="form-group">
                                     <button type="submit" class="btn btn-primary">Execute ALTER</button>
@@ -364,7 +390,7 @@
                             <button id="clearQuery" class="btn btn-secondary">Clear</button>
                         </div>
                         <textarea id="sqlQuery" placeholder="Enter your SQL query here..."></textarea>
-                        
+
                         <div class="query-result-section">
                             <h4>Query Results</h4>
                             <div id="queryResults">
@@ -391,7 +417,8 @@
                 </div>
                 <div class="modal-buttons">
                     <button type="submit" class="btn btn-primary">Create</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('createDatabaseModal')">Cancel</button>
+                    <button type="button" class="btn btn-secondary"
+                        onclick="closeModal('createDatabaseModal')">Cancel</button>
                 </div>
             </form>
         </div>
@@ -417,13 +444,16 @@
                         <!-- Tables will be populated here -->
                     </div>
                     <div class="table-selection-controls">
-                        <button type="button" class="btn btn-small btn-secondary" onclick="selectAllTables()">Select All</button>
-                        <button type="button" class="btn btn-small btn-secondary" onclick="deselectAllTables()">Deselect All</button>
+                        <button type="button" class="btn btn-small btn-secondary" onclick="selectAllTables()">Select
+                            All</button>
+                        <button type="button" class="btn btn-small btn-secondary" onclick="deselectAllTables()">Deselect
+                            All</button>
                     </div>
                 </div>
                 <div class="modal-buttons">
                     <button type="submit" class="btn btn-primary">Export Database</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('exportDatabaseModal')">Cancel</button>
+                    <button type="button" class="btn btn-secondary"
+                        onclick="closeModal('exportDatabaseModal')">Cancel</button>
                 </div>
             </form>
         </div>
@@ -461,16 +491,19 @@
                     </div>
                     <div id="customWhereClause" style="display: none;">
                         <label for="exportWhereClause">WHERE clause (without WHERE keyword):</label>
-                        <textarea id="exportWhereClause" placeholder="e.g., id > 100 AND status = 'active'" rows="3"></textarea>
+                        <textarea id="exportWhereClause" placeholder="e.g., id > 100 AND status = 'active'"
+                            rows="3"></textarea>
                         <div class="row-count-preview">
-                            <button type="button" class="btn btn-small btn-secondary" onclick="previewRowCount()">Preview Row Count</button>
+                            <button type="button" class="btn btn-small btn-secondary"
+                                onclick="previewRowCount()">Preview Row Count</button>
                             <span id="rowCountPreview"></span>
                         </div>
                     </div>
                 </div>
                 <div class="modal-buttons">
                     <button type="submit" class="btn btn-primary">Export Table</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('exportTableModal')">Cancel</button>
+                    <button type="button" class="btn btn-secondary"
+                        onclick="closeModal('exportTableModal')">Cancel</button>
                 </div>
             </form>
         </div>
@@ -478,4 +511,5 @@
 
     <script src="app.js"></script>
 </body>
+
 </html>

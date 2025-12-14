@@ -37,6 +37,7 @@ document.addEventListener('DOMContentLoaded', function () {
     setupEventListeners();
     setupSocketListeners();
     restoreSessionCredentials();
+    loadSavedConnections();
 });
 
 function setupEventListeners() {
@@ -118,6 +119,10 @@ function setupEventListeners() {
     document.getElementById('addIndexForm').addEventListener('submit', addIndex);
     document.getElementById('customAlterForm').addEventListener('submit', executeCustomAlter);
     document.getElementById('dropTableBtn').addEventListener('click', dropTable);
+
+    // Saved connections
+    document.getElementById('savedConnections').addEventListener('change', fillConnectionForm);
+    document.getElementById('deleteSavedConnectionBtn').addEventListener('click', deleteSavedConnection);
 }
 
 function setupSocketListeners() {
@@ -257,7 +262,108 @@ function handleConnection(e) {
 
     currentCredentials = credentials;
     socket.emit('connect_database', credentials);
+    currentCredentials = credentials;
+
+    // Save connection if requested
+    if (document.getElementById('saveConnection').checked) {
+        saveConnection(credentials);
+    }
+
+    socket.emit('connect_database', credentials);
     showNotification('Connecting to database...', 'info');
+}
+
+function saveConnection(credentials) {
+    const savedConnections = JSON.parse(localStorage.getItem('mysql_saved_connections') || '[]');
+
+    // Check if connection already exists
+    const existingIndex = savedConnections.findIndex(c =>
+        c.host === credentials.host &&
+        c.port === credentials.port &&
+        c.user === credentials.user
+    );
+
+    if (existingIndex !== -1) {
+        savedConnections[existingIndex] = credentials;
+    } else {
+        savedConnections.push(credentials);
+    }
+
+    localStorage.setItem('mysql_saved_connections', JSON.stringify(savedConnections));
+    loadSavedConnections(); // Refresh the list
+}
+
+function loadSavedConnections() {
+    const savedConnections = JSON.parse(localStorage.getItem('mysql_saved_connections') || '[]');
+    const select = document.getElementById('savedConnections');
+    const wrapper = document.getElementById('savedConnectionsWrapper');
+
+    // Clear existing options except the first one
+    while (select.options.length > 1) {
+        select.remove(1);
+    }
+
+    if (savedConnections.length > 0) {
+        wrapper.style.display = 'block';
+        savedConnections.forEach((conn, index) => {
+            const option = document.createElement('option');
+            option.value = index;
+            option.textContent = `${conn.user}@${conn.host}:${conn.port}`;
+            select.appendChild(option);
+        });
+    } else {
+        wrapper.style.display = 'none';
+    }
+}
+
+function fillConnectionForm() {
+    const select = document.getElementById('savedConnections');
+    const index = select.value;
+
+    if (index === '') return;
+
+    const savedConnections = JSON.parse(localStorage.getItem('mysql_saved_connections') || '[]');
+    const conn = savedConnections[index];
+
+    if (conn) {
+        document.getElementById('host').value = conn.host;
+        document.getElementById('port').value = conn.port;
+        document.getElementById('user').value = conn.user;
+        document.getElementById('password').value = conn.password;
+
+        // Handle SSL fields if present
+        if (conn.ssl) {
+            if (conn.ssl.ca) document.getElementById('sslCa').value = conn.ssl.ca;
+            if (conn.ssl.cert) document.getElementById('sslCert').value = conn.ssl.cert;
+            if (conn.ssl.key) document.getElementById('sslKey').value = conn.ssl.key;
+
+            // Show advanced options if SSL data exists
+            document.getElementById('advancedOptions').style.display = 'block';
+            document.querySelector('.advanced-options-toggle .toggle-icon').textContent = '▲';
+        }
+
+        document.getElementById('saveConnection').checked = true;
+    }
+}
+
+function deleteSavedConnection() {
+    const select = document.getElementById('savedConnections');
+    const index = select.value;
+
+    if (index === '') {
+        showNotification('Please select a connection to delete', 'error');
+        return;
+    }
+
+    const savedConnections = JSON.parse(localStorage.getItem('mysql_saved_connections') || '[]');
+    savedConnections.splice(index, 1);
+    localStorage.setItem('mysql_saved_connections', JSON.stringify(savedConnections));
+
+    loadSavedConnections();
+    showNotification('Connection deleted successfully', 'success');
+
+    // Clear form
+    document.getElementById('connectionForm').reset();
 }
 
 function handleDisconnection() {

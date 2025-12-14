@@ -713,3 +713,65 @@ select {
         white-space: nowrap;
     }
 }
+
+/* Saved Connections Styles */
+.saved-connections-wrapper {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    border: 1px solid #e9ecef;
+}
+
+.saved-connections-wrapper label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #495057;
+}
+
+.saved-connections-controls {
+    display: flex;
+    gap: 10px;
+}
+
+.saved-connections-controls select {
+    flex-grow: 1;
+    padding: 8px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.saved-connections-controls button {
+    padding: 8px 12px;
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.saved-connections-controls button:hover {
+    background-color: #c82333;
+}
+
+.save-connection-group {
+    margin-top: 15px;
+    margin-bottom: 15px;
+}
+
+/* Ensure checkbox alignment matches other checkboxes */
+.save-connection-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.save-connection-group input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+}
