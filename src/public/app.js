@@ -1626,7 +1626,7 @@ function handleDeleteAllData() {
 
     // Double confirmation
     const verify = prompt(`Type 'DELETE' to confirm deleting all data from '${currentTable}':`);
-    if (verify !== 'DELETE') {
+    if (!verify || verify.toUpperCase() !== 'DELETE') {
         showNotification('Deletion cancelled', 'info');
         return;
     }
