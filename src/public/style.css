@@ -312,12 +312,49 @@ header h1::before {
     margin-bottom: 1.5rem;
 }
 
+/* Specific overrides for checkboxes and radios */
+.form-group input[type="checkbox"],
+.form-group input[type="radio"] {
+    width: auto;
+    margin-right: 0.5rem;
+    display: inline-block;
+    vertical-align: middle;
+    /* Reset padding/styles from generic input */
+    padding: 0;
+    height: auto;
+    background: none;
+    border: none;
+    box-shadow: none;
+}
+
+.form-group input[type="checkbox"]:focus,
+.form-group input[type="radio"]:focus {
+    box-shadow: none;
+    outline: 1px dotted var(--primary-color);
+}
+
+.form-group label {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+/* Fix nested small text */
+.form-group label small {
+    margin-left: 0.5rem;
+}
+
 .checkbox-group {
     display: flex;
     align-items: center;
     gap: 0.75rem;
 }
 
+/* Start of older checkbox group logic, keeping compatible */
 .checkbox-group input[type="checkbox"] {
     width: auto;
     cursor: pointer;
@@ -326,6 +363,9 @@ header h1::before {
 .checkbox-group label {
     margin: 0;
     cursor: pointer;
+    /* Ensure flex display is not overridden if it overlaps */
+    display: flex;
+    align-items: center;
 }
 
 /* Main Interface */
@@ -596,11 +636,14 @@ table tr:hover td {
     background-color: rgba(15, 23, 42, 0.5);
     backdrop-filter: blur(4px);
     animation: fadeIn 0.3s;
+    /* Flexbox for centering */
+    justify-content: center;
+    align-items: center;
 }
 
 .modal-content {
     background-color: #fff;
-    margin: 5% auto;
+    margin: 0;
     padding: 2rem;
     border-radius: var(--radius-lg);
     width: 90%;
@@ -608,6 +651,10 @@ table tr:hover td {
     box-shadow: var(--shadow-lg);
     border: 1px solid var(--border-color);
     animation: fadeIn 0.4s ease-out;
+    max-height: 90vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
 }
 
 .modal-content h3 {

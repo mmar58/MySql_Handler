@@ -201,6 +201,9 @@ NODE_ENV=production
 3. **View Data**: Use the Data tab to browse table contents
 4. **Search Data**: Select a column and enter search terms
 5. **Sort Data**: Click any column header to sort
+6. **Delete Data**:
+   * **Delete All Data**: Quickly remove all records from a table (with confirmation).
+   * **Delete Selected**: Select specific rows using checkboxes (requires Primary Key) and delete them in bulk.
 
 ### 🔧 **Altering Tables**
 
@@ -270,6 +273,8 @@ NODE_ENV=production
 | `create_database` | `databaseName` | Create new database |
 | `drop_database` | `databaseName` | Delete database |
 | `drop_table` | `{database, table}` | Delete table |
+| `delete_all_data` | `{database, table}` | Delete all records from a table |
+| `delete_selected_data` | `{database, table, targetColumn, targetValues}` | Delete specific rows by ID |
 | `get_table_indexes` | `{database, table}` | Get table indexes |
 | `export_database` | `{database, options}` | Export database with options |
 | `export_table` | `{database, table, options}` | Export table with options |
@@ -285,6 +290,7 @@ NODE_ENV=production
 | `tables_list` | `{database, tables}` | Tables in database |
 | `table_structure` | `{columns}` | Table column information |
 | `table_data` | `{data, total, page, searchColumn, searchValue, sortColumn, sortDirection}` | Table data with metadata |
+| `data_deleted` | `{message}` | Confirmation of successful data deletion |
 | `query_result` | `{results, message}` | SQL query results |
 | `database_exported` | `{filename, content, size}` | Database export file data |
 | `table_exported` | `{filename, content, size}` | Table export file data |

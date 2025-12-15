@@ -4,6 +4,7 @@ const socket = io();
 // Global variables
 let currentDatabase = null;
 let currentTable = null;
+let currentPrimaryKey = null;
 let currentPage = 1;
 let totalPages = 1;
 let pageSize = 100;
@@ -98,11 +99,14 @@ function setupEventListeners() {
     // Create database form
     document.getElementById('createDatabaseForm').addEventListener('submit', createDatabase);
 
+
     // Export functionality
     document.getElementById('exportDatabase').addEventListener('click', showExportDatabaseModal);
     document.getElementById('exportTableBtn').addEventListener('click', showExportTableModal);
     document.getElementById('exportSelectedRows').addEventListener('click', exportSelectedRows);
     document.getElementById('exportCurrentData').addEventListener('click', exportCurrentData);
+    document.getElementById('deleteAllData').addEventListener('click', handleDeleteAllData);
+    document.getElementById('deleteSelectedRows').addEventListener('click', handleDeleteSelectedRows);
     document.getElementById('exportDatabaseForm').addEventListener('submit', exportDatabase);
     document.getElementById('exportTableForm').addEventListener('submit', exportTable);
 
@@ -170,11 +174,17 @@ function setupSocketListeners() {
 
     socket.on('table_structure', (data) => {
         populateTableStructure(data.structure);
+        // We can also identify the primary key here, but we'll do it when populating data or structure
     });
 
     socket.on('table_data', (data) => {
         populateTableData(data);
         updatePagination(data);
+    });
+
+    socket.on('data_deleted', (data) => {
+        showNotification(data.message, 'success');
+        loadTableData(); // Refresh data
     });
 
     socket.on('query_result', (data) => {
@@ -210,7 +220,8 @@ function setupSocketListeners() {
     });
 
     socket.on('database_exported', (data) => {
-        downloadFile(data.filename, data.content);
+        // Data content might be a buffer (for ZIP) or string (for SQL)
+        downloadFile(data.filename, data.content, data.isZip);
         showNotification(`Database exported successfully! File size: ${formatFileSize(data.size)}`, 'success');
         closeModal('exportDatabaseModal');
     });
@@ -803,6 +814,21 @@ function populateTableData(data) {
 
     // Create header with sorting functionality
     const headerRow = document.createElement('tr');
+
+    // Add checkbox column header if PK exists
+    if (currentPrimaryKey) {
+        const th = document.createElement('th');
+        th.style.width = '30px';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.addEventListener('change', (e) => {
+            const checked = e.target.checked;
+            document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = checked);
+        });
+        th.appendChild(checkbox);
+        headerRow.appendChild(th);
+    }
+
     const columns = Object.keys(data.data[0]);
 
     columns.forEach(column => {
@@ -832,6 +858,17 @@ function populateTableData(data) {
     // Create data rows
     data.data.forEach(row => {
         const tr = document.createElement('tr');
+
+        // Add checkbox if PK exists
+        if (currentPrimaryKey) {
+            const td = document.createElement('td');
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'row-checkbox';
+            checkbox.value = row[currentPrimaryKey];
+            td.appendChild(checkbox);
+            tr.appendChild(td);
+        }
 
         // Add row copy button
         const rowCopyBtn = document.createElement('button');
@@ -897,6 +934,15 @@ function populateTableData(data) {
 
         tbody.appendChild(tr);
     });
+
+    // Show delete buttons
+    document.getElementById('deleteAllData').style.display = 'inline-block';
+    if (currentPrimaryKey) {
+        document.getElementById('deleteSelectedRows').style.display = 'inline-block';
+    } else {
+        document.getElementById('deleteSelectedRows').style.display = 'none';
+        showNotification('Primary Key not found. Row deletion disabled.', 'warning');
+    }
 
     // Show search info if search is active
     updateSearchInfo(data);
@@ -1134,11 +1180,21 @@ function clearSearch() {
     loadTableData();
 }
 
+
+// ... (other global variables remain same)
+
 function populateTableStructure(structure) {
     const tbody = structureTable.querySelector('tbody');
     tbody.innerHTML = '';
 
+    // reset primary key
+    currentPrimaryKey = null;
+
     structure.forEach(field => {
+        if (field.Key === 'PRI') {
+            currentPrimaryKey = field.Field;
+        }
+
         const tr = document.createElement('tr');
 
         // Add row copy button
@@ -1151,6 +1207,7 @@ function populateTableStructure(structure) {
             copyRowData(field, e.target);
         });
         tr.appendChild(rowCopyBtn);
+
 
         ['Field', 'Type', 'Null', 'Key', 'Default', 'Extra'].forEach((prop, index) => {
             const td = document.createElement('td');
@@ -1556,6 +1613,61 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+
+function handleDeleteAllData() {
+    if (!currentDatabase || !currentTable) {
+        showNotification('No table selected', 'error');
+        return;
+    }
+
+    if (!confirm(`Are you sure you want to delete ALL data from table '${currentTable}'? This action cannot be undone!`)) {
+        return;
+    }
+
+    // Double confirmation
+    const verify = prompt(`Type 'DELETE' to confirm deleting all data from '${currentTable}':`);
+    if (verify !== 'DELETE') {
+        showNotification('Deletion cancelled', 'info');
+        return;
+    }
+
+    socket.emit('delete_all_data', {
+        database: currentDatabase,
+        table: currentTable
+    });
+}
+
+function handleDeleteSelectedRows() {
+    if (!currentDatabase || !currentTable) {
+        showNotification('No table selected', 'error');
+        return;
+    }
+
+    if (!currentPrimaryKey) {
+        showNotification('Cannot delete rows: No Primary Key found', 'error');
+        return;
+    }
+
+    const selectedCheckboxes = document.querySelectorAll('.row-checkbox:checked');
+    if (selectedCheckboxes.length === 0) {
+        showNotification('Please select rows to delete', 'error');
+        return;
+    }
+
+    const ids = Array.from(selectedCheckboxes).map(cb => cb.value);
+
+    if (!confirm(`Are you sure you want to delete ${ids.length} selected row(s)?`)) {
+        return;
+    }
+
+    socket.emit('delete_selected_data', {
+        database: currentDatabase,
+        table: currentTable,
+        targetColumn: currentPrimaryKey,
+        targetValues: ids
+    });
+}
+
 // Copy functions
 function copyRowData(rowData, buttonElement) {
     try {
@@ -1724,6 +1836,8 @@ function exportDatabase(e) {
     e.preventDefault();
 
     const includeData = document.getElementById('exportIncludeData').checked;
+    const separateData = document.getElementById('exportSeparateData').checked;
+    const exportMethod = document.querySelector('input[name="exportMethod"]:checked').value;
     const selectedTables = Array.from(document.querySelectorAll('#exportTablesList input[type="checkbox"]:checked'))
         .map(cb => cb.value);
 
@@ -1738,6 +1852,8 @@ function exportDatabase(e) {
         database: currentDatabase,
         options: {
             includeData: includeData,
+            separateData: separateData,
+            exportMethod: exportMethod,
             selectedTables: selectedTables
         }
     });
@@ -1812,8 +1928,15 @@ function exportCurrentData() {
     });
 }
 
-function downloadFile(filename, content) {
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+function downloadFile(filename, content, isBinary = false) {
+    let blob;
+    if (isBinary) {
+        // If content is an ArrayBuffer (from socket.io for binary data)
+        blob = new Blob([content], { type: 'application/zip' });
+    } else {
+        blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    }
+
     const url = URL.createObjectURL(blob);
 
     const a = document.createElement('a');

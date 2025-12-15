@@ -75,14 +75,14 @@ io.on('connection', (socket) => {
         try {
             const dbManager = new DatabaseManager(credentials);
             await dbManager.connect();
-            
+
             activeConnections.set(socket.id, dbManager);
-            
+
             socket.emit('connection_success', {
                 message: 'Successfully connected to database',
                 connectionId: socket.id
             });
-            
+
             console.log(`Database connected for user: ${socket.id}`);
         } catch (error) {
             socket.emit('connection_error', {
@@ -164,12 +164,12 @@ io.on('connection', (socket) => {
         try {
             const result = await dbManager.getTableData(database, table, limit, offset, sortColumn, sortDirection, searchColumn, searchValue);
             // Send the result directly, adding database and table info
-            socket.emit('table_data', { 
-                database, 
-                table, 
+            socket.emit('table_data', {
+                database,
+                table,
                 data: result.data,
                 total: result.total,
-                limit: result.limit, 
+                limit: result.limit,
                 offset: result.offset,
                 sortColumn: result.sortColumn,
                 sortDirection: result.sortDirection,
@@ -341,6 +341,38 @@ io.on('connection', (socket) => {
         try {
             const count = await dbManager.getRowCount(database, table, whereClause);
             socket.emit('row_count_result', { database, table, count, whereClause });
+        } catch (error) {
+            socket.emit('error', { message: error.message });
+        }
+    });
+
+    // Delete all data
+    socket.on('delete_all_data', async ({ database, table }) => {
+        const dbManager = activeConnections.get(socket.id);
+        if (!dbManager) {
+            socket.emit('error', { message: 'No active database connection' });
+            return;
+        }
+
+        try {
+            await dbManager.deleteAllData(database, table);
+            socket.emit('data_deleted', { message: `All data deleted from table '${table}'` });
+        } catch (error) {
+            socket.emit('error', { message: error.message });
+        }
+    });
+
+    // Delete selected data
+    socket.on('delete_selected_data', async ({ database, table, targetColumn, targetValues }) => {
+        const dbManager = activeConnections.get(socket.id);
+        if (!dbManager) {
+            socket.emit('error', { message: 'No active database connection' });
+            return;
+        }
+
+        try {
+            await dbManager.deleteRows(database, table, targetColumn, targetValues);
+            socket.emit('data_deleted', { message: `${targetValues.length} rows deleted from table '${table}'` });
         } catch (error) {
             socket.emit('error', { message: error.message });
         }

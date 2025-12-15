@@ -1,4 +1,6 @@
 const mysql = require('mysql2/promise');
+const archiver = require('archiver');
+const { PassThrough } = require('stream');
 
 class DatabaseManager {
     constructor(credentials) {
@@ -440,32 +442,110 @@ class DatabaseManager {
             throw new Error('No database connection');
         }
 
-        const { includeData = true, selectedTables = null } = options;
-        let sqlContent = '';
+        const { includeData = true, selectedTables = null, exportMethod = 'single', separateData = false } = options;
 
         try {
-            // Add header comment
-            sqlContent += `-- Database Export: ${databaseName}\n`;
-            sqlContent += `-- Generated on: ${new Date().toISOString()}\n`;
-            sqlContent += `-- MySQL Handler Export\n\n`;
-
-            // Create database statement
-            sqlContent += `CREATE DATABASE IF NOT EXISTS \`${databaseName}\`;\n`;
-            sqlContent += `USE \`${databaseName}\`;\n\n`;
-
-            // Get all tables or selected tables
+            // Get tables
             const tables = selectedTables || await this.getTables(databaseName);
 
-            for (const tableName of tables) {
-                sqlContent += await this.exportTable(databaseName, tableName, { includeData });
-                sqlContent += '\n';
+            // Case 1: Single file, no separation of data needed
+            if (exportMethod === 'single' && !separateData) {
+                let sqlContent = '';
+                // Add header comment
+                sqlContent += `-- Database Export: ${databaseName}\n`;
+                sqlContent += `-- Generated on: ${new Date().toISOString()}\n`;
+                sqlContent += `-- MySQL Handler Export\n\n`;
+
+                // Create database statement
+                sqlContent += `CREATE DATABASE IF NOT EXISTS \`${databaseName}\`;\n`;
+                sqlContent += `USE \`${databaseName}\`;\n\n`;
+
+                for (const tableName of tables) {
+                    sqlContent += await this.exportTable(databaseName, tableName, { includeData });
+                    sqlContent += '\n';
+                }
+
+                return {
+                    filename: `${databaseName}_export_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.sql`,
+                    content: sqlContent,
+                    size: Buffer.byteLength(sqlContent, 'utf8'),
+                    isZip: false
+                };
             }
 
-            return {
-                filename: `${databaseName}_export_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.sql`,
-                content: sqlContent,
-                size: Buffer.byteLength(sqlContent, 'utf8')
-            };
+            // Case 2: Multi-file (ZIP required)
+            // Either separated by table OR separated data/structure OR both
+
+            return new Promise(async (resolve, reject) => {
+                const archive = archiver('zip', {
+                    zlib: { level: 9 } // Sets the compression level.
+                });
+
+                const chunks = [];
+                const output = new PassThrough();
+
+                output.on('data', (chunk) => chunks.push(chunk));
+                output.on('end', () => {
+                    const resultBuffer = Buffer.concat(chunks);
+                    resolve({
+                        filename: `${databaseName}_export_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.zip`,
+                        content: resultBuffer,
+                        size: resultBuffer.length,
+                        isZip: true
+                    });
+                });
+
+                archive.on('error', (err) => reject(err));
+                archive.pipe(output);
+
+                // Add main read me or info
+                archive.append(`Database Export: ${databaseName}\nGenerated on: ${new Date().toISOString()}\n`, { name: 'info.txt' });
+
+                if (exportMethod === 'single' && separateData) {
+                    // Single file export but structure and data separated
+                    let structureContent = `CREATE DATABASE IF NOT EXISTS \`${databaseName}\`;\nUSE \`${databaseName}\`;\n\n`;
+                    let dataContent = `USE \`${databaseName}\`;\n\n`;
+
+                    for (const tableName of tables) {
+                        // Structure
+                        const tableStruct = await this.exportTable(databaseName, tableName, { includeData: false });
+                        structureContent += tableStruct + '\n';
+
+                        // Data
+                        if (includeData) {
+                            const tableData = await this.exportTableDataOnly(databaseName, tableName);
+                            dataContent += tableData + '\n';
+                        }
+                    }
+
+                    archive.append(structureContent, { name: 'structure.sql' });
+                    if (includeData) {
+                        archive.append(dataContent, { name: 'data.sql' });
+                    }
+
+                } else if (exportMethod === 'split') {
+                    // Separate file per table
+                    for (const tableName of tables) {
+                        if (separateData) {
+                            // Split structure and data PER table
+                            const tableStruct = await this.exportTable(databaseName, tableName, { includeData: false });
+                            archive.append(tableStruct, { name: `${tableName}_structure.sql` });
+
+                            if (includeData) {
+                                const tableData = await this.exportTableDataOnly(databaseName, tableName);
+                                archive.append(tableData, { name: `${tableName}_data.sql` });
+                            }
+                        } else {
+                            // One file per table (structure + data)
+                            const tableContent = await this.exportTable(databaseName, tableName, { includeData });
+                            archive.append(tableContent, { name: `${tableName}.sql` });
+                        }
+                    }
+                }
+
+                await archive.finalize();
+            });
+
         } catch (error) {
             throw new Error(`Failed to export database: ${error.message}`);
         }
@@ -537,6 +617,107 @@ class DatabaseManager {
             return sqlContent;
         } catch (error) {
             throw new Error(`Failed to export table: ${error.message}`);
+        }
+    }
+
+    async exportTableDataOnly(databaseName, tableName, options = {}) {
+        if (!this.connection) {
+            throw new Error('No database connection');
+        }
+
+        const { whereClause = null, selectedRows = null } = options;
+        let sqlContent = '';
+
+        try {
+            sqlContent += `-- Data for table \`${tableName}\`\n`;
+
+            let dataQuery = `SELECT * FROM \`${databaseName}\`.\`${tableName}\``;
+
+            if (whereClause) {
+                dataQuery += ` WHERE ${whereClause}`;
+            }
+
+            const [rows] = await this.connection.query(dataQuery);
+
+            if (rows.length > 0) {
+                // Filter rows if specific rows are selected
+                let dataRows = rows;
+                if (selectedRows && Array.isArray(selectedRows)) {
+                    dataRows = rows.filter((_, index) => selectedRows.includes(index));
+                }
+
+                if (dataRows.length > 0) {
+                    const columns = Object.keys(dataRows[0]);
+                    const columnsList = columns.map(col => `\`${col}\``).join(', ');
+
+                    sqlContent += `LOCK TABLES \`${tableName}\` WRITE;\n`;
+                    sqlContent += `INSERT INTO \`${tableName}\` (${columnsList}) VALUES\n`;
+
+                    const valueStrings = dataRows.map(row => {
+                        const values = columns.map(col => {
+                            const value = row[col];
+                            if (value === null) return 'NULL';
+                            if (typeof value === 'string') {
+                                return this.connection.escape(value);
+                            }
+                            return this.connection.escape(value);
+                        });
+                        return `(${values.join(', ')})`;
+                    });
+
+                    sqlContent += valueStrings.join(',\n') + ';\n';
+                    sqlContent += `UNLOCK TABLES;\n`;
+                }
+            }
+            return sqlContent;
+        } catch (error) {
+            throw new Error(`Failed to export table data: ${error.message}`);
+        }
+    }
+
+    async deleteAllData(databaseName, tableName) {
+        if (!this.connection) {
+            throw new Error('No database connection');
+        }
+
+        try {
+            const escapedDatabase = this.connection.escapeId(databaseName);
+            const escapedTable = this.connection.escapeId(tableName);
+            await this.connection.query(`TRUNCATE TABLE ${escapedDatabase}.${escapedTable}`);
+        } catch (error) {
+            // Fallback to DELETE FROM if TRUNCATE fails (e.g., foreign key constraints)
+            try {
+                const escapedDatabase = this.connection.escapeId(databaseName);
+                const escapedTable = this.connection.escapeId(tableName);
+                await this.connection.query(`DELETE FROM ${escapedDatabase}.${escapedTable}`);
+            } catch (deleteError) {
+                throw new Error(`Failed to delete all data: ${deleteError.message}`);
+            }
+        }
+    }
+
+    async deleteRows(databaseName, tableName, targetColumn, targetValues) {
+        if (!this.connection) {
+            throw new Error('No database connection');
+        }
+
+        if (!Array.isArray(targetValues) || targetValues.length === 0) {
+            throw new Error('No rows specified for deletion');
+        }
+
+        try {
+            const escapedDatabase = this.connection.escapeId(databaseName);
+            const escapedTable = this.connection.escapeId(tableName);
+            const escapedColumn = this.connection.escapeId(targetColumn);
+
+            // Create a placeholder string based on the number of values
+            const placeholders = targetValues.map(() => '?').join(',');
+
+            const query = `DELETE FROM ${escapedDatabase}.${escapedTable} WHERE ${escapedColumn} IN (${placeholders})`;
+
+            await this.connection.query(query, targetValues);
+        } catch (error) {
+            throw new Error(`Failed to delete rows: ${error.message}`);
         }
     }
 
