@@ -127,6 +127,9 @@ function setupEventListeners() {
     // Saved connections
     document.getElementById('savedConnections').addEventListener('change', fillConnectionForm);
     document.getElementById('deleteSavedConnectionBtn').addEventListener('click', deleteSavedConnection);
+
+    // Error Log
+    document.getElementById('clearErrorLogBtn').addEventListener('click', clearErrorLog);
 }
 
 function setupSocketListeners() {
@@ -143,8 +146,11 @@ function setupSocketListeners() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    host: currentCredentials.host,
+                    port: currentCredentials.port,
                     username: currentCredentials.user,
-                    password: currentCredentials.password
+                    password: currentCredentials.password,
+                    ssl: currentCredentials.ssl
                 })
             });
         }
@@ -241,6 +247,15 @@ function setupSocketListeners() {
 
     socket.on('error', (data) => {
         showNotification(data.message, 'error');
+    });
+
+    socket.on('query_execution_error', (data) => {
+        addErrorToLog(data);
+        // Ensure the log container is visible
+        const container = document.getElementById('errorLogContainer');
+        if (container.style.display === 'none') {
+            container.style.display = 'flex';
+        }
     });
 }
 
@@ -815,6 +830,12 @@ function populateTableData(data) {
     // Create header with sorting functionality
     const headerRow = document.createElement('tr');
 
+    // Add empty header for row copy button if not already there (it will be added after checkbox if present)
+    const actionTh = document.createElement('th');
+    actionTh.style.width = '40px';
+    // We'll append this after the checkbox header if it exists, or first if not.
+
+
     // Add checkbox column header if PK exists
     if (currentPrimaryKey) {
         const th = document.createElement('th');
@@ -828,6 +849,9 @@ function populateTableData(data) {
         th.appendChild(checkbox);
         headerRow.appendChild(th);
     }
+
+    // Append the action column header
+    headerRow.appendChild(actionTh);
 
     const columns = Object.keys(data.data[0]);
 
@@ -870,7 +894,11 @@ function populateTableData(data) {
             tr.appendChild(td);
         }
 
-        // Add row copy button
+        // Add row copy button cell
+        const copyBtnTd = document.createElement('td');
+        copyBtnTd.style.width = '40px';
+        copyBtnTd.className = 'action-cell';
+
         const rowCopyBtn = document.createElement('button');
         rowCopyBtn.className = 'row-copy-btn';
         rowCopyBtn.innerHTML = '📄';
@@ -879,7 +907,9 @@ function populateTableData(data) {
             e.stopPropagation();
             copyRowData(row, e.target);
         });
-        tr.appendChild(rowCopyBtn);
+
+        copyBtnTd.appendChild(rowCopyBtn);
+        tr.appendChild(copyBtnTd);
 
         columns.forEach(column => {
             const td = document.createElement('td');
@@ -1567,13 +1597,33 @@ function restoreSessionCredentials() {
                 document.getElementById('user').value = data.username;
                 document.getElementById('password').value = data.password;
 
+                if (data.host) document.getElementById('host').value = data.host;
+                if (data.port) document.getElementById('port').value = data.port;
+
+                // Handle SSL fields if present
+                if (data.ssl) {
+                    if (data.ssl.ca) document.getElementById('sslCa').value = data.ssl.ca;
+                    if (data.ssl.cert) document.getElementById('sslCert').value = data.ssl.cert;
+                    if (data.ssl.key) document.getElementById('sslKey').value = data.ssl.key;
+
+                    if (typeof data.ssl.rejectUnauthorized !== 'undefined') {
+                        document.getElementById('rejectUnauthorized').checked = data.ssl.rejectUnauthorized;
+                    }
+
+                    // Show advanced options
+                    document.getElementById('advancedOptions').style.display = 'block';
+                    document.querySelector('.advanced-options-toggle .toggle-icon').textContent = '▲';
+                }
+
                 // Auto-connect
                 const credentials = {
-                    host: document.getElementById('host').value,
-                    port: parseInt(document.getElementById('port').value),
+                    host: data.host || document.getElementById('host').value,
+                    port: parseInt(data.port || document.getElementById('port').value),
                     user: data.username,
-                    password: data.password
+                    password: data.password,
+                    ssl: data.ssl || null
                 };
+
                 currentCredentials = credentials;
                 socket.emit('connect_database', credentials);
                 showNotification('Auto-connecting with saved credentials...', 'info');
@@ -1960,6 +2010,71 @@ function formatFileSize(bytes) {
 
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
+
+// Error Log Functions
+function addErrorToLog(data) {
+    const logList = document.getElementById('errorLogList');
+
+    const errorItem = document.createElement('div');
+    errorItem.className = 'error-log-item';
+
+    const timestamp = new Date().toLocaleTimeString();
+
+    // Meta info
+    const metaDiv = document.createElement('div');
+    metaDiv.className = 'error-log-meta';
+    metaDiv.innerHTML = `
+        <span>Database: ${data.database || 'N/A'}</span>
+        <span>${timestamp}</span>
+    `;
+
+    // Error message
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'error-log-message';
+    messageDiv.innerHTML = `
+        <span class="error-log-message-text">${data.message}</span>
+        <button class="copy-btn" onclick="copyToClipboard('${data.message.replace(/'/g, "\\'")}', 'Error copied!')">
+            Copy Error
+        </button>
+    `;
+
+    // Query
+    const queryDiv = document.createElement('div');
+    queryDiv.className = 'error-log-query';
+    queryDiv.innerHTML = `
+        <span>${data.query}</span>
+        <button class="copy-btn" onclick="copyToClipboard('${data.query.replace(/'/g, "\\'").replace(/\n/g, "\\n")}', 'Query copied!')">
+            Copy Query
+        </button>
+    `;
+
+    errorItem.appendChild(metaDiv);
+    errorItem.appendChild(messageDiv);
+    errorItem.appendChild(queryDiv);
+
+    // Add to top of list
+    if (logList.firstChild) {
+        logList.insertBefore(errorItem, logList.firstChild);
+    } else {
+        logList.appendChild(errorItem);
+    }
+}
+
+function clearErrorLog() {
+    const logList = document.getElementById('errorLogList');
+    logList.innerHTML = '';
+    document.getElementById('errorLogContainer').style.display = 'none';
+}
+
+function copyToClipboard(text, successMessage) {
+    navigator.clipboard.writeText(text).then(() => {
+        showNotification(successMessage, 'success');
+    }).catch(err => {
+        console.error('Failed to copy: ', err);
+        showNotification('Failed to copy to clipboard', 'error');
+    });
+}
+window.copyToClipboard = copyToClipboard; // Make globally accessible for onclick events
 
 // Global functions for HTML onclick handlers
 window.selectAllTables = selectAllTables;

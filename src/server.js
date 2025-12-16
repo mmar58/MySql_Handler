@@ -45,19 +45,26 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// API to get last username/password from session
+// API to get last credentials from session
 app.get('/session-credentials', (req, res) => {
     res.json({
+        host: req.session.lastHost || '',
+        port: req.session.lastPort || '',
         username: req.session.lastUsername || '',
-        password: req.session.lastPassword || ''
+        password: req.session.lastPassword || '',
+        ssl: req.session.lastSsl || null
     });
 });
 
 // API to store credentials in session
 app.post('/store-credentials', (req, res) => {
-    const { username, password } = req.body;
+    const { host, port, username, password, ssl } = req.body;
+    req.session.lastHost = host;
+    req.session.lastPort = port;
     req.session.lastUsername = username;
     req.session.lastPassword = password;
+    req.session.lastSsl = ssl;
+
     req.session.save((err) => {
         if (err) {
             return res.status(500).json({ success: false, error: err.message });
@@ -193,6 +200,15 @@ io.on('connection', (socket) => {
             const result = await dbManager.executeQuery(database, query);
             socket.emit('query_result', { query, result });
         } catch (error) {
+            // Emitting specific query error for logging
+            socket.emit('query_execution_error', {
+                message: error.message,
+                query: query,
+                database: database
+            });
+            // Also emit standard error for notification if needed, or we might just use the log
+            // Keeping standard error for now as it triggers a notification, but we might want to suppress it if the log is enough
+            // decided to keep both: immediate notification + persistent log
             socket.emit('error', { message: error.message });
         }
     });

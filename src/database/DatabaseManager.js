@@ -559,7 +559,20 @@ class DatabaseManager {
         const { includeData = true, selectedRows = null, whereClause = null } = options;
         let sqlContent = '';
 
+        let oldSqlMode = null;
+
         try {
+            // Save current SQL mode and set to safe mode (excludes ANSI_QUOTES)
+            try {
+                const [modeResult] = await this.connection.query("SELECT @@SESSION.sql_mode as mode");
+                if (modeResult && modeResult.length > 0) {
+                    oldSqlMode = modeResult[0].mode;
+                }
+                await this.connection.query("SET SESSION sql_mode = 'NO_AUTO_VALUE_ON_ZERO'");
+            } catch (modeError) {
+                console.warn('Warning: Failed to set safe SQL mode for export:', modeError.message);
+            }
+
             // Add table header comment
             sqlContent += `-- Table structure for \`${tableName}\`\n`;
             sqlContent += `DROP TABLE IF EXISTS \`${tableName}\`;\n`;
@@ -599,10 +612,19 @@ class DatabaseManager {
                         const valueStrings = dataRows.map(row => {
                             const values = columns.map(col => {
                                 const value = row[col];
+                                // DEBUG LOG
+                                // if (tableName === 'projects' || tableName === 'content') {
+                                //     console.log(`Export Debug: Table ${tableName}, Col ${col}, Type ${typeof value}, Value:`, value);
+                                // }
+
                                 if (value === null) return 'NULL';
-                                if (typeof value === 'string') {
-                                    return this.connection.escape(value);
+
+                                // Fix for Arrays/JSON objects, but preserve Dates
+                                if (typeof value === 'object' && !(value instanceof Date)) {
+                                    console.log(`Stringifying object for column ${col}:`, value);
+                                    return this.connection.escape(JSON.stringify(value));
                                 }
+
                                 return this.connection.escape(value);
                             });
                             return `(${values.join(', ')})`;
@@ -617,6 +639,15 @@ class DatabaseManager {
             return sqlContent;
         } catch (error) {
             throw new Error(`Failed to export table: ${error.message}`);
+        } finally {
+            // Restore original SQL mode
+            if (oldSqlMode !== null) {
+                try {
+                    await this.connection.query(`SET SESSION sql_mode = ?`, [oldSqlMode]);
+                } catch (restoreError) {
+                    console.error('Error restoring SQL mode:', restoreError.message);
+                }
+            }
         }
     }
 
@@ -657,9 +688,13 @@ class DatabaseManager {
                         const values = columns.map(col => {
                             const value = row[col];
                             if (value === null) return 'NULL';
-                            if (typeof value === 'string') {
-                                return this.connection.escape(value);
+
+                            // Fix for Arrays/JSON objects, but preserve Dates
+                            if (typeof value === 'object' && !(value instanceof Date)) {
+                                console.log(`Stringifying object for column ${col}:`, value);
+                                return this.connection.escape(JSON.stringify(value));
                             }
+
                             return this.connection.escape(value);
                         });
                         return `(${values.join(', ')})`;
