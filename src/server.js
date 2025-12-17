@@ -378,6 +378,22 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Update row
+    socket.on('update_row', async ({ database, table, primaryKeyColumn, primaryKeyValue, updateData }) => {
+        const dbManager = activeConnections.get(socket.id);
+        if (!dbManager) {
+            socket.emit('error', { message: 'No active database connection' });
+            return;
+        }
+
+        try {
+            await dbManager.updateRow(database, table, primaryKeyColumn, primaryKeyValue, updateData);
+            socket.emit('row_updated', { message: 'Row updated successfully' });
+        } catch (error) {
+            socket.emit('error', { message: error.message });
+        }
+    });
+
     // Delete selected data
     socket.on('delete_selected_data', async ({ database, table, targetColumn, targetValues }) => {
         const dbManager = activeConnections.get(socket.id);

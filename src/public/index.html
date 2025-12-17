@@ -191,6 +191,7 @@
                                     <th>Key</th>
                                     <th>Default</th>
                                     <th>Extra</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody></tbody>
@@ -542,6 +543,22 @@
                     <button type="submit" class="btn btn-primary">Export Table</button>
                     <button type="button" class="btn btn-secondary"
                         onclick="closeModal('exportTableModal')">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Row Modal -->
+    <div class="modal" id="editRowModal">
+        <div class="modal-content">
+            <h3>Edit Row</h3>
+            <form id="editRowForm">
+                <div id="editRowFields" class="edit-row-fields">
+                    <!-- Fields will be dynamically added here -->
+                </div>
+                <div class="modal-buttons">
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('editRowModal')">Cancel</button>
                 </div>
             </form>
         </div>

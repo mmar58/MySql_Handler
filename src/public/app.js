@@ -4,6 +4,7 @@ const socket = io();
 // Global variables
 let currentDatabase = null;
 let currentTable = null;
+let currentTableStructure = null;
 let currentPrimaryKey = null;
 let currentPage = 1;
 let totalPages = 1;
@@ -130,6 +131,7 @@ function setupEventListeners() {
 
     // Error Log
     document.getElementById('clearErrorLogBtn').addEventListener('click', clearErrorLog);
+    document.getElementById('editRowForm').addEventListener('submit', saveRowData);
 }
 
 function setupSocketListeners() {
@@ -179,6 +181,7 @@ function setupSocketListeners() {
     });
 
     socket.on('table_structure', (data) => {
+        currentTableStructure = data.structure;
         populateTableStructure(data.structure);
         // We can also identify the primary key here, but we'll do it when populating data or structure
     });
@@ -257,6 +260,13 @@ function setupSocketListeners() {
             container.style.display = 'flex';
         }
     });
+
+    socket.on('row_updated', (data) => {
+        showNotification(data.message, 'success');
+        closeModal('editRowModal');
+        loadTableData(); // Refresh data
+    });
+
 }
 
 function handleConnection(e) {
@@ -517,11 +527,35 @@ function selectTable(table, element) {
     document.getElementById('exportSelectedRows').style.display = 'inline-block';
 
     // Reset pagination
+    currentTable = table;
+    selectedTableSpan.textContent = `${currentDatabase}.${currentTable}`;
     currentPage = 1;
+    currentSortColumn = null;
+    currentSortDirection = 'ASC';
+    currentSearchColumn = null;
+    currentSearchValue = null;
 
-    // Load table data, structure, and indexes
-    loadTableData();
-    loadTableStructure();
+    // Reset pagination controls
+    document.getElementById('prevPage').disabled = true;
+    document.getElementById('nextPage').disabled = true;
+
+    // Get table structure for metadata (PKs, Nullable fields)
+    socket.emit('get_table_structure', {
+        database: currentDatabase,
+        table: currentTable
+    });
+
+    socket.emit('get_table_data', {
+        database: currentDatabase,
+        table: currentTable,
+        limit: pageSize,
+        offset: 0,
+        sortColumn: currentSortColumn,
+        sortDirection: currentSortDirection,
+        searchColumn: currentSearchColumn,
+        searchValue: currentSearchValue
+    });
+
     loadTableIndexes();
     populateAlterFormColumns();
 }
@@ -798,6 +832,37 @@ function dropTable() {
     });
 }
 
+function copyRowData(data, button) {
+    // If data is a row object
+    const text = JSON.stringify(data);
+    navigator.clipboard.writeText(text).then(() => {
+        const originalText = button.innerHTML; // Assuming it's an icon or text
+        button.innerHTML = '✓';
+        setTimeout(() => {
+            button.innerHTML = originalText;
+        }, 1000);
+        showNotification('Row data copied to clipboard', 'success');
+    }).catch(err => {
+        console.error('Failed to copy: ', err);
+        showNotification('Failed to copy to clipboard', 'error');
+    });
+}
+
+function copyCellData(value, button) {
+    const text = String(value);
+    navigator.clipboard.writeText(text).then(() => {
+        const originalText = button.innerHTML;
+        button.innerHTML = '✓';
+        setTimeout(() => {
+            button.innerHTML = originalText;
+        }, 1000);
+        showNotification('Cell data copied to clipboard', 'success');
+    }).catch(err => {
+        console.error('Failed to copy: ', err);
+        showNotification('Failed to copy to clipboard', 'error');
+    });
+}
+
 function populateTableData(data) {
     const thead = dataTable.querySelector('thead');
     const tbody = dataTable.querySelector('tbody');
@@ -832,7 +897,8 @@ function populateTableData(data) {
 
     // Add empty header for row copy button if not already there (it will be added after checkbox if present)
     const actionTh = document.createElement('th');
-    actionTh.style.width = '40px';
+    actionTh.style.width = '70px'; // Increased from 40px to fit both buttons
+    actionTh.style.minWidth = '70px';
     // We'll append this after the checkbox header if it exists, or first if not.
 
 
@@ -896,7 +962,9 @@ function populateTableData(data) {
 
         // Add row copy button cell
         const copyBtnTd = document.createElement('td');
-        copyBtnTd.style.width = '40px';
+        // Removed fixed width here, let header control it
+        copyBtnTd.style.whiteSpace = 'nowrap';
+        copyBtnTd.style.textAlign = 'center';
         copyBtnTd.className = 'action-cell';
 
         const rowCopyBtn = document.createElement('button');
@@ -907,6 +975,20 @@ function populateTableData(data) {
             e.stopPropagation();
             copyRowData(row, e.target);
         });
+
+        // Add row edit button
+        if (currentPrimaryKey) {
+            const rowEditBtn = document.createElement('button');
+            rowEditBtn.className = 'row-copy-btn'; // Reuse style for now
+            rowEditBtn.innerHTML = '✏️';
+            rowEditBtn.title = 'Edit row';
+            rowEditBtn.style.marginLeft = '5px';
+            rowEditBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openEditRowModal(row);
+            });
+            copyBtnTd.appendChild(rowEditBtn);
+        }
 
         copyBtnTd.appendChild(rowCopyBtn);
         tr.appendChild(copyBtnTd);
@@ -1227,7 +1309,12 @@ function populateTableStructure(structure) {
 
         const tr = document.createElement('tr');
 
-        // Add row copy button
+        // Add row copy button (and edit button) column
+        const copyBtnTd = document.createElement('td');
+        copyBtnTd.className = 'action-cell';
+        copyBtnTd.style.whiteSpace = 'nowrap';
+        copyBtnTd.style.textAlign = 'center';
+
         const rowCopyBtn = document.createElement('button');
         rowCopyBtn.className = 'row-copy-btn';
         rowCopyBtn.innerHTML = '📄';
@@ -1293,6 +1380,32 @@ function populateTableStructure(structure) {
             tr.appendChild(td);
         });
 
+        // Add Actions Column
+        const actionTd = document.createElement('td');
+
+        // Edit Column Button
+        const editBtn = document.createElement('button');
+        editBtn.className = 'btn btn-small btn-primary';
+        editBtn.textContent = 'Edit';
+        editBtn.style.marginRight = '5px';
+        editBtn.onclick = () => {
+            // Pre-fill modify form
+            document.getElementById('modifyColumnName').value = field.Field;
+            // Switch to Alter Table tab
+            switchTab('alter');
+        };
+
+        // Drop Column Button
+        const dropBtn = document.createElement('button');
+        dropBtn.className = 'btn btn-small btn-danger';
+        dropBtn.innerHTML = '🗑️';
+        dropBtn.title = 'Drop Column';
+        dropBtn.onclick = () => deleteColumn(field.Field);
+
+        actionTd.appendChild(editBtn);
+        actionTd.appendChild(dropBtn);
+        tr.appendChild(actionTd);
+
         tbody.appendChild(tr);
     });
 
@@ -1352,7 +1465,7 @@ function executeQuery() {
     }
 
     socket.emit('execute_query', { database, query });
-    queryResults.innerHTML = '<p>Executing query...</p>';
+    queryResults.innerHTML = '<p>Executing query, please wait...</p>';
 }
 
 function displayQueryResult(data) {
@@ -1542,6 +1655,137 @@ window.addEventListener('click', (e) => {
         e.target.style.display = 'none';
     }
 });
+
+function openEditRowModal(row) {
+    if (!currentPrimaryKey) return;
+
+    const modal = document.getElementById('editRowModal');
+    const container = document.getElementById('editRowFields');
+    container.innerHTML = '';
+
+    // Store PK value on form for identification
+    const form = document.getElementById('editRowForm');
+    form.setAttribute('data-pk-value', row[currentPrimaryKey]);
+
+    Object.keys(row).forEach(col => {
+        const formGroup = document.createElement('div');
+        formGroup.className = 'form-group';
+
+        const label = document.createElement('label');
+        label.textContent = col;
+        formGroup.appendChild(label);
+
+        const inputContainer = document.createElement('div');
+        inputContainer.style.display = 'flex';
+        inputContainer.style.gap = '10px';
+        inputContainer.style.alignItems = 'center';
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.name = col;
+        input.style.flex = '1';
+
+        // Find column structure definition
+        const colDef = currentTableStructure ? currentTableStructure.find(c => c.Field === col) : null;
+        const isNullable = colDef && colDef.Null === 'YES';
+
+        // Null Handling
+        if (row[col] === null) {
+            input.value = 'NULL';
+            input.disabled = true;
+        } else {
+            input.value = row[col];
+        }
+
+        if (col === currentPrimaryKey) {
+            input.disabled = true;
+            input.title = 'Primary Key cannot be edited';
+        }
+
+        inputContainer.appendChild(input);
+
+        // Add NULL checkbox if nullable
+        if (isNullable && col !== currentPrimaryKey) {
+            const nullLabel = document.createElement('label');
+            nullLabel.style.display = 'flex';
+            nullLabel.style.alignItems = 'center';
+            nullLabel.style.gap = '5px';
+            nullLabel.style.fontSize = '0.9em';
+            nullLabel.style.cursor = 'pointer';
+
+            const nullCheckbox = document.createElement('input');
+            nullCheckbox.type = 'checkbox';
+            nullCheckbox.className = 'null-checkbox';
+            nullCheckbox.dataset.column = col;
+            nullCheckbox.checked = row[col] === null;
+
+            nullCheckbox.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    input.disabled = true;
+                    input.value = 'NULL';
+                } else {
+                    input.disabled = false;
+                    input.value = row[col] === null ? '' : row[col];
+                }
+            });
+
+            nullLabel.appendChild(nullCheckbox);
+            nullLabel.appendChild(document.createTextNode('NULL'));
+            inputContainer.appendChild(nullLabel);
+        }
+
+        formGroup.appendChild(inputContainer);
+        container.appendChild(formGroup);
+    });
+
+    modal.style.display = 'flex';
+}
+
+function saveRowData(e) {
+    e.preventDefault();
+
+    if (!currentPrimaryKey) return;
+
+    const form = document.getElementById('editRowForm');
+    const pkValue = form.getAttribute('data-pk-value');
+    const formData = new FormData(form);
+    const updateData = {};
+
+    formData.forEach((value, key) => {
+        if (key !== currentPrimaryKey) {
+            // Check if there's a checked NULL checkbox for this column
+            const nullCheckbox = form.querySelector(`.null-checkbox[data-column="${key}"]`);
+            if (nullCheckbox && nullCheckbox.checked) {
+                updateData[key] = null;
+            } else {
+                updateData[key] = value;
+            }
+        }
+    });
+
+    socket.emit('update_row', {
+        database: currentDatabase,
+        table: currentTable,
+        primaryKeyColumn: currentPrimaryKey,
+        primaryKeyValue: pkValue,
+        updateData: updateData
+    });
+}
+
+function deleteColumn(columnName) {
+    if (!confirm(`Are you sure you want to drop column '${columnName}'? This action cannot be undone.`)) {
+        return;
+    }
+
+    const alterQuery = `ALTER TABLE \`${currentTable}\` DROP COLUMN \`${columnName}\``;
+
+    socket.emit('alter_table', {
+        database: currentDatabase,
+        table: currentTable,
+        alterQuery: alterQuery
+    });
+}
+
 
 // Handle keyboard shortcuts
 document.addEventListener('keydown', (e) => {

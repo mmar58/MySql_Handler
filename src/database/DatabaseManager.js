@@ -710,6 +710,37 @@ class DatabaseManager {
         }
     }
 
+    async updateRow(databaseName, tableName, primaryKeyColumn, primaryKeyValue, updateData) {
+        if (!this.connection) {
+            throw new Error('No database connection');
+        }
+
+        try {
+            const escapedDatabase = this.connection.escapeId(databaseName);
+            const escapedTable = this.connection.escapeId(tableName);
+
+            // Build SET clause
+            const columns = Object.keys(updateData);
+            if (columns.length === 0) {
+                return; // Nothing to update
+            }
+
+            const setClauses = columns.map(col => {
+                return `${this.connection.escapeId(col)} = ?`;
+            });
+            const values = columns.map(col => updateData[col]);
+
+            // Add PK to values for WHERE clause
+            values.push(primaryKeyValue);
+
+            const query = `UPDATE ${escapedDatabase}.${escapedTable} SET ${setClauses.join(', ')} WHERE ${this.connection.escapeId(primaryKeyColumn)} = ?`;
+
+            await this.connection.execute(query, values);
+        } catch (error) {
+            throw new Error(`Failed to update row: ${error.message}`);
+        }
+    }
+
     async deleteAllData(databaseName, tableName) {
         if (!this.connection) {
             throw new Error('No database connection');
