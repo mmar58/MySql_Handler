@@ -1635,7 +1635,28 @@ function createDatabase(e) {
 function showNotification(message, type = 'info') {
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
-    notification.textContent = message;
+
+    // Create copy button for errors
+    if (type === 'error') {
+        const copyBtn = document.createElement('button');
+        copyBtn.innerHTML = '📋';
+        copyBtn.className = 'btn-text';
+        copyBtn.style.marginRight = '10px';
+        copyBtn.style.background = 'transparent';
+        copyBtn.style.border = 'none';
+        copyBtn.style.color = 'white';
+        copyBtn.style.cursor = 'pointer';
+        copyBtn.title = 'Copy Error';
+        copyBtn.onclick = () => {
+            navigator.clipboard.writeText(message);
+            showNotification('Error copied to clipboard', 'success');
+        };
+        notification.appendChild(copyBtn);
+    }
+
+    const textSpan = document.createElement('span');
+    textSpan.textContent = message;
+    notification.appendChild(textSpan);
 
     document.getElementById('notifications').appendChild(notification);
 
@@ -1694,7 +1715,12 @@ function openEditRowModal(row) {
             input.value = 'NULL';
             input.disabled = true;
         } else {
-            input.value = row[col];
+            // Handle Date formatting for MySQL (remove T and Z)
+            let val = row[col];
+            if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(val)) {
+                val = val.replace('T', ' ').replace('Z', '');
+            }
+            input.value = val;
         }
 
         if (col === currentPrimaryKey) {
