@@ -1709,26 +1709,92 @@ function openEditRowModal(row) {
         // Find column structure definition
         const colDef = currentTableStructure ? currentTableStructure.find(c => c.Field === col) : null;
         const isNullable = colDef && colDef.Null === 'YES';
+        const isEnum = colDef && colDef.Type.toLowerCase().startsWith('enum(');
 
-        // Null Handling
-        if (row[col] === null) {
-            input.value = 'NULL';
-            input.disabled = true;
-        } else {
-            // Handle Date formatting for MySQL (remove T and Z)
-            let val = row[col];
-            if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(val)) {
-                val = val.replace('T', ' ').replace('Z', '');
+        let inputControl;
+
+        if (isEnum) {
+            // Parse ENUM values
+            // Type format: enum('val1','val2',...)
+            // Use regex to capture values inside single quotes, handling commas inside values
+            const enumContent = colDef.Type.substring(5, colDef.Type.length - 1);
+            const matches = enumContent.match(/'([^']*)'/g);
+            const enumValues = matches ? matches.map(v => v.slice(1, -1)) : [];
+
+            inputControl = document.createElement('div');
+            inputControl.className = 'radio-group';
+            inputControl.style.flex = '1';
+            inputControl.style.display = 'flex';
+            inputControl.style.gap = '15px';
+            inputControl.style.flexWrap = 'wrap';
+
+            enumValues.forEach(val => {
+                const radioLabel = document.createElement('label');
+                radioLabel.style.display = 'flex';
+                radioLabel.style.alignItems = 'center';
+                radioLabel.style.gap = '5px';
+                radioLabel.style.cursor = 'pointer';
+                radioLabel.style.fontWeight = 'normal';
+
+                const radio = document.createElement('input');
+                radio.type = 'radio';
+                radio.name = col;
+                radio.value = val;
+
+                // Check if value matches
+                if (row[col] === val) {
+                    radio.checked = true;
+                }
+
+                radioLabel.appendChild(radio);
+                radioLabel.appendChild(document.createTextNode(val));
+                inputControl.appendChild(radioLabel);
+            });
+
+            // If null, no radio checked (default behavior correct)
+            if (row[col] === null) {
+                // disable initially if we are handling null logic below? 
+                // We'll handle disabled state via the null check block below.
             }
-            input.value = val;
+
+        } else {
+            inputControl = document.createElement('input');
+            inputControl.type = 'text';
+            inputControl.name = col;
+            inputControl.style.flex = '1';
+
+            // Null Handling for text input
+            if (row[col] === null) {
+                inputControl.value = 'NULL';
+                inputControl.disabled = true;
+            } else {
+                // Handle Date formatting
+                let val = row[col];
+                if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(val)) {
+                    val = val.replace('T', ' ').replace('Z', '');
+                } else if (typeof val === 'object' && val !== null) {
+                    val = JSON.stringify(val, null, 2);
+                    // Use textarea for JSON to allow multi-line editing
+                    // We need to replace the input element with a textarea if we want multi-line, 
+                    // but for minimal disruption replacing the element here might be tricky if not planned.
+                    // However, we can just set the value to the input for now, or better:
+                    // If it is an object, maybe switch `inputControl` to a textarea?
+                    // The `inputControl` was already created as 'input' type text at line 1761.
+                    // Let's just stick to the plan: stringify it. 
+                    // Ideally, we should perform this check BEFORE creating the element if we wanted a textarea.
+                    // But `input` type text can hold the string, just not show newlines well.
+                    // Let's stick to stringify.
+                }
+                inputControl.value = val;
+            }
+
+            if (col === currentPrimaryKey) {
+                inputControl.disabled = true;
+                inputControl.title = 'Primary Key cannot be edited';
+            }
         }
 
-        if (col === currentPrimaryKey) {
-            input.disabled = true;
-            input.title = 'Primary Key cannot be edited';
-        }
-
-        inputContainer.appendChild(input);
+        inputContainer.appendChild(inputControl);
 
         // Add NULL checkbox if nullable
         if (isNullable && col !== currentPrimaryKey) {
@@ -1745,19 +1811,53 @@ function openEditRowModal(row) {
             nullCheckbox.dataset.column = col;
             nullCheckbox.checked = row[col] === null;
 
+            // Initial disabled state for radios if null
+            if (isEnum && row[col] === null) {
+                inputControl.querySelectorAll('input[type="radio"]').forEach(r => r.disabled = true);
+            }
+
             nullCheckbox.addEventListener('change', (e) => {
                 if (e.target.checked) {
-                    input.disabled = true;
-                    input.value = 'NULL';
+                    if (isEnum) {
+                        inputControl.querySelectorAll('input[type="radio"]').forEach(r => {
+                            r.disabled = true;
+                            r.checked = false;
+                        });
+                    } else {
+                        inputControl.disabled = true;
+                        inputControl.value = 'NULL';
+                    }
                 } else {
-                    input.disabled = false;
-                    input.value = row[col] === null ? '' : row[col];
+                    if (isEnum) {
+                        inputControl.querySelectorAll('input[type="radio"]').forEach(r => r.disabled = false);
+                        // Restore original value? Or leave unchecked?
+                        // If it was null, leave unchecked. User must select.
+                        // If it wasn't null initially (e.g. user checked then unchecked null box), 
+                        // we could restore, but simpler to just let them pick.
+                        if (row[col] !== null && enumValues.includes(row[col])) {
+                            // Optional: restore original selection if we wanted to be fancy
+                            // But keep it simple
+                            const originalRadio = inputControl.querySelector(`input[value="${row[col]}"]`);
+                            if (originalRadio) originalRadio.checked = true;
+                        }
+                    } else {
+                        inputControl.disabled = false;
+                        let val = row[col];
+                        if (val === null) val = ''; // Default to empty if was null
+                        else if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(val)) {
+                            val = val.replace('T', ' ').replace('Z', '');
+                        }
+                        inputControl.value = val;
+                    }
                 }
             });
 
             nullLabel.appendChild(nullCheckbox);
             nullLabel.appendChild(document.createTextNode('NULL'));
             inputContainer.appendChild(nullLabel);
+        } else if (col === currentPrimaryKey && isEnum) {
+            // Edge case: PK is enum (rare), disable radios
+            inputControl.querySelectorAll('input[type="radio"]').forEach(r => r.disabled = true);
         }
 
         formGroup.appendChild(inputContainer);
@@ -1784,7 +1884,17 @@ function saveRowData(e) {
             if (nullCheckbox && nullCheckbox.checked) {
                 updateData[key] = null;
             } else {
-                updateData[key] = value;
+                // Try to parse JSON if it looks like one
+                if (typeof value === 'string' && (value.trim().startsWith('{') || value.trim().startsWith('['))) {
+                    try {
+                        updateData[key] = JSON.parse(value);
+                    } catch (e) {
+                        // Not valid JSON, save as string
+                        updateData[key] = value;
+                    }
+                } else {
+                    updateData[key] = value;
+                }
             }
         }
     });
