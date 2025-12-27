@@ -6,6 +6,7 @@ const socketIo = require('socket.io');
 const path = require('path');
 const cors = require('cors');
 const DatabaseManager = require('./database/DatabaseManager');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 
@@ -46,31 +47,53 @@ app.get('/', (req, res) => {
 });
 
 // API to get last credentials from session
+// API to get last credentials from session (now via JWT)
+const JWT_SECRET = process.env.JWT_SECRET_KEY || 'your_fallback_secret_key_change_in_production';
+
+// API to get last credentials from session (now via JWT)
 app.get('/session-credentials', (req, res) => {
-    res.json({
-        host: req.session.lastHost || '',
-        port: req.session.lastPort || '',
-        username: req.session.lastUsername || '',
-        password: req.session.lastPassword || '',
-        ssl: req.session.lastSsl || null
-    });
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+        return res.json({});
+    }
+
+    const token = authHeader.split(' ')[1];
+    if (!token) {
+        return res.json({});
+    }
+
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        res.json({
+            host: decoded.host,
+            port: decoded.port,
+            username: decoded.username,
+            password: decoded.password,
+            ssl: decoded.ssl
+        });
+    } catch (err) {
+        // Invalid or expired token
+        res.json({});
+    }
 });
 
-// API to store credentials in session
+// API to store credentials in session (now generate JWT)
 app.post('/store-credentials', (req, res) => {
     const { host, port, username, password, ssl } = req.body;
-    req.session.lastHost = host;
-    req.session.lastPort = port;
-    req.session.lastUsername = username;
-    req.session.lastPassword = password;
-    req.session.lastSsl = ssl;
 
-    req.session.save((err) => {
-        if (err) {
-            return res.status(500).json({ success: false, error: err.message });
-        }
-        res.json({ success: true });
-    });
+    // Create payload
+    const payload = {
+        host,
+        port,
+        username,
+        password,
+        ssl
+    };
+
+    // Sign token
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+
+    res.json({ success: true, token });
 });
 
 // Socket.IO connection handling

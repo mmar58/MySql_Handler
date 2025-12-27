@@ -154,7 +154,13 @@ function setupSocketListeners() {
                     password: currentCredentials.password,
                     ssl: currentCredentials.ssl
                 })
-            });
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.token) {
+                        localStorage.setItem('mysql_jwt_token', data.token);
+                    }
+                });
         }
     });
 
@@ -296,8 +302,6 @@ function handleConnection(e) {
         if (sslKey) credentials.ssl.key = sslKey;
     }
 
-    currentCredentials = credentials;
-    socket.emit('connect_database', credentials);
     currentCredentials = credentials;
 
     // Save connection if requested
@@ -1943,6 +1947,9 @@ function handleLogout() {
         socket.emit('disconnect_database');
     }
 
+    // Remove JWT token
+    localStorage.removeItem('mysql_jwt_token');
+
     fetch('/logout', { method: 'POST' })
         .then(res => res.json())
         .then(data => {
@@ -1969,10 +1976,15 @@ function handleLogout() {
 }
 
 function restoreSessionCredentials() {
-    fetch('/session-credentials')
+    const token = localStorage.getItem('mysql_jwt_token');
+
+    // Always fetch, but add header if token exists
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+    fetch('/session-credentials', { headers })
         .then(res => res.json())
         .then(data => {
-            if (data.username && data.password) {
+            if (data.username && data.password && data.host) { // Ensure key fields exist
                 // Fill the form
                 document.getElementById('user').value = data.username;
                 document.getElementById('password').value = data.password;
