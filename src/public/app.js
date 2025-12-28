@@ -1008,7 +1008,12 @@ function populateTableData(data) {
                 td.style.color = '#888';
                 td.className = 'data-cell';
             } else {
-                const stringValue = String(value);
+                let stringValue;
+                if (typeof value === 'object') {
+                    stringValue = JSON.stringify(value);
+                } else {
+                    stringValue = String(value);
+                }
 
                 // Determine content type and apply appropriate styling
                 if (typeof value === 'number') {
