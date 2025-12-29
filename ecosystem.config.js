@@ -10,7 +10,7 @@ module.exports = {
             DB_ACQUIRE_TIMEOUT: 60000,
             MAX_ROWS_PER_PAGE: 1000,
             DEFAULT_PAGE_SIZE: 100,
-            JWT_SECRET_KEY: "ThisIsVerySecretApu58"
+            JWT_SECRET_KEY: "secretKey"
         }
     }]
 };
