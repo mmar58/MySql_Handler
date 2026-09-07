@@ -1,1 +1,1 @@
-git pull && pm2 reload ecosystem.config.cjs;
+git pull && pnpm run build && pm2 reload ecosystem.config.cjs;
