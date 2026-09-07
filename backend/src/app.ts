@@ -15,6 +15,10 @@ export function createApp(): {
 } {
   const app = express();
 
+  // Trust Vite's dev proxy (and any single reverse proxy in production)
+  // so that X-Forwarded-For is used for req.ip instead of the proxy's loopback address.
+  app.set('trust proxy', 1);
+
   const sessionMiddleware = session({
     secret: CONFIG.sessionSecret,
     resave: false,

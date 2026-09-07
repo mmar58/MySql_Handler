@@ -42,10 +42,10 @@
         loadConnections();
 
         api.get<{ ip: string }>("/my-ip")
-            .then(res => {
+            .then((res) => {
                 if (res && res.ip) currentIp = res.ip;
             })
-            .catch(err => console.error("Failed to fetch IP", err));
+            .catch((err) => console.error("Failed to fetch IP", err));
 
         // Listen for socket connection status
         socket.on("connection_success", (msg) => {
@@ -56,7 +56,10 @@
 
         socket.on("connection_error", (msg) => {
             isConnecting = false;
-            connectionError = typeof msg === 'object' ? (msg.error || msg.message || JSON.stringify(msg)) : msg;
+            connectionError =
+                typeof msg === "object"
+                    ? msg.error || msg.message || JSON.stringify(msg)
+                    : msg;
         });
 
         return () => {
@@ -72,12 +75,13 @@
                 status: string;
                 connections: Record<string, ServerConnection>;
             }>("/connections/list");
+            console.log(serverRes);
             let list: ServerConnection[] = [];
             if (serverRes.connections) {
                 list = Object.entries(serverRes.connections).map(([id, c]) => ({
                     ...c,
                     _id: id,
-                    _location: "server"
+                    _location: "server",
                 }));
             }
 
@@ -166,7 +170,13 @@
             sslKey: sslKey || undefined,
             rejectUnauthorized,
             ipRestriction,
-            selectedIps: ipRestriction === 'selected' ? selectedIpsText.split(',').map(ip => ip.trim()).filter(Boolean) : undefined,
+            selectedIps:
+                ipRestriction === "selected"
+                    ? selectedIpsText
+                          .split(",")
+                          .map((ip) => ip.trim())
+                          .filter(Boolean)
+                    : undefined,
         };
 
         if (saveConnection) {
@@ -177,7 +187,7 @@
                 try {
                     await api.post("/connections/save", {
                         id: payload._id,
-                        connection: payload
+                        connection: payload,
                     });
                 } catch (err: any) {
                     connectionError =
@@ -215,13 +225,23 @@
     }
 </script>
 
-<div class="m-auto w-full max-w-2xl p-8 bg-card/80 backdrop-blur-xl rounded-2xl border shadow-[0_8px_30px_rgb(0,0,0,0.12)] flex flex-col gap-6 transition-all">
+<div
+    class="m-auto w-full max-w-2xl p-8 bg-card/80 backdrop-blur-xl rounded-2xl border shadow-[0_8px_30px_rgb(0,0,0,0.12)] flex flex-col gap-6 transition-all"
+>
     <div class="flex flex-col items-center gap-3 mb-4 text-primary">
-        <div class="p-4 bg-gradient-to-br from-primary/20 to-primary/5 rounded-2xl shadow-inner border border-primary/10">
+        <div
+            class="p-4 bg-gradient-to-br from-primary/20 to-primary/5 rounded-2xl shadow-inner border border-primary/10"
+        >
             <Database class="w-10 h-10 text-primary drop-shadow-md" />
         </div>
-        <h1 class="text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60">DB Manager</h1>
-        <p class="text-sm font-medium text-muted-foreground">Securely connect to your database</p>
+        <h1
+            class="text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60"
+        >
+            DB Manager
+        </h1>
+        <p class="text-sm font-medium text-muted-foreground">
+            Securely connect to your database
+        </p>
     </div>
 
     {#if connectionError}
@@ -232,39 +252,39 @@
         </div>
     {/if}
 
-    <SavedConnections 
-        {savedConnections} 
-        bind:selectedConnectionId 
-        onSelect={handleSelectConnection} 
-        onDelete={deleteConnection} 
-        onManage={() => appState.isConnectionManagerOpen = true} 
+    <SavedConnections
+        {savedConnections}
+        bind:selectedConnectionId
+        onSelect={handleSelectConnection}
+        onDelete={deleteConnection}
+        onManage={() => (appState.isConnectionManagerOpen = true)}
     />
 
     <form onsubmit={handleConnect} class="flex flex-col gap-5">
         <EngineSelector bind:engine onChange={setEngine} />
-        
-        <CredentialsForm 
-            bind:host 
-            bind:port 
-            bind:user 
-            bind:password 
-            bind:database 
+
+        <CredentialsForm
+            bind:host
+            bind:port
+            bind:user
+            bind:password
+            bind:database
         />
-        
-        <SslOptions 
-            bind:showAdvanced 
-            bind:sslCa 
-            bind:sslCert 
-            bind:sslKey 
-            bind:rejectUnauthorized 
+
+        <SslOptions
+            bind:showAdvanced
+            bind:sslCa
+            bind:sslCert
+            bind:sslKey
+            bind:rejectUnauthorized
         />
-        
-        <SaveOptions 
-            bind:saveConnection 
-            bind:saveLocation 
-            bind:ipRestriction 
-            {currentIp} 
-            bind:selectedIpsText 
+
+        <SaveOptions
+            bind:saveConnection
+            bind:saveLocation
+            bind:ipRestriction
+            {currentIp}
+            bind:selectedIpsText
         />
 
         <button

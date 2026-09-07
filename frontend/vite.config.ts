@@ -13,6 +13,13 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
+            const clientIp = req.socket.remoteAddress ?? '';
+            proxyReq.setHeader('X-Forwarded-For', clientIp);
+            proxyReq.setHeader('X-Real-IP', clientIp);
+          });
+        },
       },
       // Proxy socket.io WebSocket traffic
       '/socket.io': {
@@ -21,10 +28,37 @@ export default defineConfig({
         ws: true,
       },
       // Proxy other backend routes
-      '/store-credentials': 'http://localhost:3000',
-      '/session-credentials': 'http://localhost:3000',
+      '/store-credentials': {
+        target: 'http://localhost:3000',
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
+            const clientIp = req.socket.remoteAddress ?? '';
+            proxyReq.setHeader('X-Forwarded-For', clientIp);
+            proxyReq.setHeader('X-Real-IP', clientIp);
+          });
+        },
+      },
+      '/session-credentials': {
+        target: 'http://localhost:3000',
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
+            const clientIp = req.socket.remoteAddress ?? '';
+            proxyReq.setHeader('X-Forwarded-For', clientIp);
+            proxyReq.setHeader('X-Real-IP', clientIp);
+          });
+        },
+      },
       '/logout': 'http://localhost:3000',
-      '/backups': 'http://localhost:3000',
+      '/backups': {
+        target: 'http://localhost:3000',
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
+            const clientIp = req.socket.remoteAddress ?? '';
+            proxyReq.setHeader('X-Forwarded-For', clientIp);
+            proxyReq.setHeader('X-Real-IP', clientIp);
+          });
+        },
+      },
     },
   },
 });

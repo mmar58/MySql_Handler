@@ -3,12 +3,13 @@ import { loadServerConnections, saveServerConnections } from '../services/Crypto
 import type { ServerConnection, ServerConnectionsMap } from '../types';
 
 function getClientIp(req: Request): string {
-  return (
-    (req.headers['x-forwarded-for'] as string) ||
+  const raw =
+    (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() ||
     req.socket.remoteAddress ||
     req.ip ||
-    ''
-  );
+    '';
+  // Strip IPv4-mapped IPv6 prefix (e.g. ::ffff:192.168.0.4 → 192.168.0.4)
+  return raw.startsWith('::ffff:') ? raw.slice(7) : raw;
 }
 
 const router: Router = Router();
@@ -51,6 +52,9 @@ router.get('/list', async (req: Request, res: Response) => {
         (conn.selectedIps ?? []).includes(clientIp)
       ) {
         authorised[id] = conn;
+      }
+      else {
+        console.log('Connection not authorised:', conn, clientIp);
       }
     }
     return res.json({ connections: authorised });
