@@ -249,10 +249,19 @@
                         type="button"
                         class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-destructive hover:text-destructive-foreground h-10 px-4 py-2"
                         onclick={() => deleteConnection(selectedConnectionId)}
+                        title="Delete connection"
                     >
                         <Trash2 class="w-4 h-4" />
                     </button>
                 {/if}
+                <button
+                    type="button"
+                    class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-muted hover:text-foreground h-10 px-4 py-2"
+                    onclick={() => appState.isConnectionManagerOpen = true}
+                    title="Manage connections"
+                >
+                    <Settings2 class="w-4 h-4" />
+                </button>
             </div>
         </div>
     {/if}

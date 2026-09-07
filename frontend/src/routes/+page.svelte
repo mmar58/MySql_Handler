@@ -7,9 +7,10 @@
 	import SqlEditor from "$lib/components/SqlEditor.svelte";
 	import StructureTable from "$lib/components/StructureTable.svelte";
 	import SettingsModal from "$lib/components/SettingsModal.svelte";
+	import ConnectionManagementModal from "$lib/components/ConnectionManagementModal.svelte";
 	import OllamaChat from "$lib/components/OllamaChat.svelte";
 	import { initSettings } from "$lib/state.svelte";
-	import { Bot } from "@lucide/svelte";
+	import { Bot, Settings2 } from "@lucide/svelte";
 	import { onMount } from "svelte";
 
 	let isSettingsOpen = $state(false);
@@ -20,6 +21,7 @@
 </script>
 
 <SettingsModal bind:isOpen={isSettingsOpen} />
+<ConnectionManagementModal />
 
 <div class="flex h-screen w-full overflow-hidden bg-background text-foreground">
 	{#if !appState.isConnected}
@@ -99,6 +101,13 @@
 					>
 						<Bot class="w-4 h-4" />
 						Ollama Assistant
+					</button>
+					<button
+						class="bg-secondary text-secondary-foreground px-3 py-1.5 rounded-md text-xs ml-2 hover:bg-secondary/80 transition-colors"
+						onclick={() => (appState.isConnectionManagerOpen = true)}
+						title="Manage Connections"
+					>
+						<Settings2 class="w-4 h-4" />
 					</button>
 					<button
 						class="bg-secondary text-secondary-foreground px-3 py-1.5 rounded-md text-xs ml-2 hover:bg-secondary/80 transition-colors"

@@ -13,6 +13,7 @@ export const appState = $state({
     currentTableStructure: null as TableColumn[] | null,
     currentCredentials: null as ServerConnection | null,
     isConnected: false,
+    isConnectionManagerOpen: false,
     activeTab: 'dashboard' as 'dashboard' | 'data' | 'structure' | 'indexes' | 'query' | 'er' | 'slowqueries',
     databases: [] as string[],
     theme: 'dark' as 'light' | 'dark',

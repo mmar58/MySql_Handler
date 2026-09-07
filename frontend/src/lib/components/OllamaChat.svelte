@@ -444,7 +444,7 @@ You can use tools to run queries, get schema, or write to the editor. If you are
                         </div>
                         <div class="flex-1 overflow-y-auto px-2 pb-2">
                             {#each appState.ollama.sessions as session}
-                                <div class="group flex items-center justify-between p-2 rounded text-sm mb-1 cursor-pointer {session.id === appState.ollama.currentSessionId ? 'bg-muted' : 'hover:bg-muted/50'}" onclick={() => appState.ollama.currentSessionId = session.id}>
+                                <div role="button" tabindex="0" class="group flex items-center justify-between p-2 rounded text-sm mb-1 cursor-pointer {session.id === appState.ollama.currentSessionId ? 'bg-muted' : 'hover:bg-muted/50'}" onclick={() => appState.ollama.currentSessionId = session.id} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') appState.ollama.currentSessionId = session.id; }}>
                                     <span class="truncate max-w-[120px]">{session.title}</span>
                                     <button class="opacity-0 group-hover:opacity-100 p-1 hover:text-destructive" onclick={(e) => { e.stopPropagation(); deleteSession(session.id); }}>
                                         <Trash2 class="w-3 h-3" />
