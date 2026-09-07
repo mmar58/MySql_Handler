@@ -25,12 +25,20 @@
     let saveConnection = $state(false);
     let saveLocation = $state<"local" | "server">("local");
     let ipRestriction = $state<"all" | "current" | "selected">("current");
+    let currentIp = $state("");
+    let selectedIpsText = $state("");
 
     let isConnecting = $state(false);
     let connectionError = $state("");
 
     onMount(() => {
         loadConnections();
+
+        api.get<{ ip: string }>("/my-ip")
+            .then(res => {
+                if (res && res.ip) currentIp = res.ip;
+            })
+            .catch(err => console.error("Failed to fetch IP", err));
 
         // Listen for socket connection status
         socket.on("connection_success", (msg) => {
@@ -100,6 +108,8 @@
             if (sslCa || sslCert || sslKey) {
                 showAdvanced = true;
             }
+            ipRestriction = conn.ipRestriction || "current";
+            selectedIpsText = (conn.selectedIps || []).join(", ");
         }
     }
 
@@ -149,6 +159,7 @@
             sslKey: sslKey || undefined,
             rejectUnauthorized,
             ipRestriction,
+            selectedIps: ipRestriction === 'selected' ? selectedIpsText.split(',').map(ip => ip.trim()).filter(Boolean) : undefined,
         };
 
         if (saveConnection) {
@@ -444,9 +455,19 @@
                                 bind:value={ipRestriction}
                                 class="flex h-9 w-full max-w-xs rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                             >
-                                <option value="current">Only allow my current IP</option>
+                                <option value="current">Only allow my current IP {currentIp ? `(${currentIp})` : ''}</option>
+                                <option value="selected">Allow specific IPs</option>
                                 <option value="all">Allow all IPs</option>
                             </select>
+                            
+                            {#if ipRestriction === 'selected'}
+                                <label class="text-sm font-medium leading-none text-muted-foreground mt-2">Specific IPs (comma separated)</label>
+                                <textarea
+                                    bind:value={selectedIpsText}
+                                    placeholder="192.168.1.1, 10.0.0.1"
+                                    class="flex min-h-[60px] w-full max-w-xs rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                ></textarea>
+                            {/if}
                         </div>
                     {/if}
                 </div>
