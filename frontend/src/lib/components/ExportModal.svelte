@@ -4,10 +4,28 @@
     import type { ExportOptions } from "$lib/types";
 
     export let show: boolean;
-    export let database: string;
-    export let table: string | null = null;
+    export let initialDatabase: string | null = null;
+    export let initialTable: string | null = null;
     export let onClose: () => void;
-    export let onExport: (options: ExportOptions) => void;
+    export let onExport: (level: 'server'|'database'|'table', db: string | null, tbl: string | null, options: ExportOptions) => void;
+
+    import { appState } from "$lib/state.svelte";
+
+    let targetLevel: 'server' | 'database' | 'table' = 'server';
+    let selectedDb: string | null = null;
+    let selectedTable: string | null = null;
+
+    $: if (show) {
+        selectedDb = initialDatabase || appState.currentDatabase;
+        selectedTable = initialTable || appState.currentTable;
+        if (selectedTable && selectedDb) {
+            targetLevel = 'table';
+        } else if (selectedDb) {
+            targetLevel = 'database';
+        } else {
+            targetLevel = 'server';
+        }
+    }
 
     let format: 'sql' | 'json' = 'sql';
     let includeData: boolean = true;
@@ -26,8 +44,8 @@
             exportMethod: 'single'
         };
 
-        if (table) {
-            options.selectedTables = [table];
+        if (targetLevel === 'table') {
+            options.selectedTables = selectedTable ? [selectedTable] : null;
             if (outputStructure === 'split') {
                 options.exportMethod = 'single';
                 options.separateData = true;
@@ -45,7 +63,7 @@
             }
         }
 
-        onExport(options);
+        onExport(targetLevel, selectedDb, selectedTable, options);
         onClose();
     }
 </script>
@@ -56,7 +74,7 @@
             <div class="flex items-center justify-between p-4 border-b">
                 <h2 class="text-lg font-semibold flex items-center gap-2">
                     <Download size={20} class="text-primary"/>
-                    Export {table ? `Table: ${table}` : `Database: ${database}`}
+                    Export Data
                 </h2>
                 <button class="p-1 hover:bg-muted rounded-md transition-colors" onclick={onClose}>
                     <X size={20} />
@@ -64,6 +82,25 @@
             </div>
             
             <div class="p-4 flex flex-col gap-4">
+                <div class="space-y-1">
+                    <label for="export-target" class="text-sm font-medium">Export Target</label>
+                    <div class="flex gap-2">
+                        <select id="export-target" class="flex-1 bg-background border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" bind:value={targetLevel}>
+                            <option value="server">Entire Server</option>
+                            <option value="database" disabled={!selectedDb}>Database: {selectedDb || 'None selected'}</option>
+                            <option value="table" disabled={!selectedTable}>Table: {selectedTable || 'None selected'}</option>
+                        </select>
+                    </div>
+                    <p class="text-[11px] text-muted-foreground mt-1">
+                        {#if targetLevel === 'server'}
+                            Will export all databases.
+                        {:else if targetLevel === 'database'}
+                            Will export all tables in database `{selectedDb}`.
+                        {:else if targetLevel === 'table'}
+                            Will export the `{selectedTable}` table in `{selectedDb}`.
+                        {/if}
+                    </p>
+                </div>
                 <div class="space-y-1">
                     <label for="export-format" class="text-sm font-medium">Export Format</label>
                     <select id="export-format" class="w-full bg-background border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" bind:value={format}>

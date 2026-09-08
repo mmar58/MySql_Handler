@@ -134,3 +134,16 @@ export interface ExportOptions {
     selectedPKValues?: unknown[] | null;
     pkColumn?: string | null;
 }
+
+export interface AppNotification {
+    id: string;
+    type: 'info' | 'success' | 'warning' | 'error';
+    title: string;
+    message: string;
+    progress?: number; // 0 to 100, undefined if not a progress notification
+    isIndeterminate?: boolean; // true if progress is unknown but active
+    actionLabel?: string;
+    onAction?: () => void;
+    timestamp: number;
+    autoClose?: boolean; // Defaults to true, can be set to false for sticky ones like imports
+}

@@ -3,7 +3,8 @@ import type {
     TableColumn,
     FilterConfig,
     AppSettings,
-    BackupProfile
+    BackupProfile,
+    AppNotification
 } from './types';
 
 // Encapsulated Application State using Svelte 5 Runes
@@ -39,8 +40,44 @@ export const appState = $state({
         layout: 'floating',
         sessions: [],
         currentSessionId: null
-    } as import('./types').OllamaAssistantState
+    } as import('./types').OllamaAssistantState,
+    
+    // Notifications
+    notifications: [] as AppNotification[]
 });
+
+export function addNotification(notification: Omit<AppNotification, 'id' | 'timestamp'> & { id?: string }) {
+    const newNotification: AppNotification = {
+        ...notification,
+        id: notification.id || Math.random().toString(36).substring(2, 9),
+        timestamp: Date.now(),
+        autoClose: notification.autoClose ?? true
+    };
+    appState.notifications.push(newNotification);
+
+    if (newNotification.autoClose) {
+        setTimeout(() => {
+            removeNotification(newNotification.id);
+        }, 5000); // 5 seconds default
+    }
+    return newNotification.id;
+}
+
+export function updateNotification(id: string, updates: Partial<AppNotification>) {
+    const idx = appState.notifications.findIndex(n => n.id === id);
+    if (idx !== -1) {
+        appState.notifications[idx] = { ...appState.notifications[idx], ...updates };
+        if (updates.autoClose) {
+            setTimeout(() => {
+                removeNotification(id);
+            }, 5000);
+        }
+    }
+}
+
+export function removeNotification(id: string) {
+    appState.notifications = appState.notifications.filter(n => n.id !== id);
+}
 
 export function initSettings() {
     try {

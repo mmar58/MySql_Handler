@@ -9,6 +9,8 @@
 	import SettingsModal from "$lib/components/SettingsModal.svelte";
 	import ConnectionManagementModal from "$lib/components/ConnectionManagementModal.svelte";
 	import OllamaChat from "$lib/components/OllamaChat.svelte";
+	import NotificationList from "$lib/components/NotificationList.svelte";
+	import GlobalOptionsMenu from "$lib/components/GlobalOptionsMenu.svelte";
 	import { initSettings } from "$lib/state.svelte";
 	import { Bot, Settings2 } from "@lucide/svelte";
 	import { onMount } from "svelte";
@@ -22,6 +24,7 @@
 
 <SettingsModal bind:isOpen={isSettingsOpen} />
 <ConnectionManagementModal />
+<NotificationList />
 
 <div class="flex h-screen w-full overflow-hidden bg-background text-foreground">
 	{#if !appState.isConnected}
@@ -55,9 +58,9 @@
 		>
 			<!-- Topbar Component -->
 			<header
-				class="h-14 border-b bg-card flex items-center px-4 justify-between shrink-0 shadow-sm"
+				class="h-14 border-b bg-card grid grid-cols-3 items-center px-4 shrink-0 shadow-sm"
 			>
-				<div class="flex items-center gap-2">
+				<div class="flex items-center gap-2 justify-start">
 					<span class="font-semibold text-lg"
 						>{appState.currentDatabase || "Select a Database"}</span
 					>
@@ -68,7 +71,14 @@
 						>
 					{/if}
 				</div>
-				<div class="flex items-center gap-4 text-sm font-medium">
+
+				<div class="flex justify-center items-center">
+					{#if appState.currentDatabase || appState.isConnected}
+						<GlobalOptionsMenu />
+					{/if}
+				</div>
+
+				<div class="flex items-center justify-end gap-4 text-sm font-medium">
 					<button
 						class="text-muted-foreground hover:text-foreground {appState.activeTab ===
 						'query'

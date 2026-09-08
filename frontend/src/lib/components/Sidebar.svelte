@@ -124,94 +124,9 @@
             searchLogic: appState.currentSearchLogic,
         });
     }
-
-    function handleDbContextMenu(e: MouseEvent, db: string) {
-        e.preventDefault();
-        contextMenu = {
-            show: true,
-            x: e.clientX,
-            y: e.clientY,
-            options: [
-                { label: "Export", icon: Download, action: () => openExportModal(db) },
-                { label: "Import", icon: Upload, action: () => { importTarget = { type: 'database', db }; fileInput.click(); } },
-                { label: "Duplicate", icon: Copy, action: () => duplicateDatabase(db) },
-                { label: "Drop Database", icon: Trash2, class: "text-destructive", action: () => dropDatabase(db) }
-            ]
-        };
-    }
-
-    function handleTableContextMenu(e: MouseEvent, db: string, table: string) {
-        e.preventDefault();
-        contextMenu = {
-            show: true,
-            x: e.clientX,
-            y: e.clientY,
-            options: [
-                { label: "Export", icon: Download, action: () => openExportModal(db, table) },
-                { label: "Import", icon: Upload, action: () => { importTarget = { type: 'table', db, table }; fileInput.click(); } },
-                { label: "Duplicate", icon: Copy, action: () => duplicateTable(db, table) },
-                { label: "Empty (Truncate)", icon: Trash2, action: () => truncateTable(db, table) },
-                { label: "Drop Table", icon: Trash2, class: "text-destructive", action: () => dropTable(db, table) }
-            ]
-        };
-    }
-
-    function openExportModal(db: string, table: string | null = null) {
-        exportDatabaseTarget = db;
-        exportTableTarget = table;
-        showExportModal = true;
-    }
-
-    function handleExport(options: any) {
-        if (exportTableTarget) {
-            socket.emit("export_table", { database: exportDatabaseTarget, table: exportTableTarget, options });
-        } else {
-            socket.emit("export_database", { database: exportDatabaseTarget, options });
-        }
-    }
-
-    function duplicateDatabase(db: string) { 
-        const newName = prompt(`Enter new name for database '${db}':`);
-        if (newName && newName !== db) socket.emit("duplicate_database", { database: db, newDatabase: newName });
-    }
-    function dropDatabase(db: string) { if(confirm(`Drop database '${db}'? This cannot be undone.`)) socket.emit("drop_database", db); }
-
-    function duplicateTable(db: string, table: string) { 
-        const newName = prompt(`Enter new name for table '${table}':`);
-        if (newName && newName !== table) socket.emit("duplicate_table", { database: db, table, newTable: newName });
-    }
-    function truncateTable(db: string, table: string) { if(confirm(`Empty all data in '${table}'?`)) socket.emit("truncate_table", { database: db, table }); }
-    function dropTable(db: string, table: string) { if(confirm(`Drop table '${table}'? This cannot be undone.`)) socket.emit("drop_table", { database: db, table }); }
-
-    function handleFileUpload(e: Event) {
-        const file = (e.target as HTMLInputElement).files?.[0];
-        if (!file || !importTarget) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            const content = ev.target?.result as string;
-            const type = file.name.endsWith('.json') ? 'json' : 'sql';
-            if (importTarget?.type === 'database') {
-                socket.emit('import_database', { database: importTarget.db, content, type });
-            } else if (importTarget?.type === 'table') {
-                socket.emit('import_table', { database: importTarget.db, table: importTarget.table, content, type });
-            }
-            importTarget = null;
-            if (fileInput) fileInput.value = '';
-        };
-        reader.readAsText(file);
-    }
 </script>
 
 <div class="flex flex-col gap-1 w-full text-sm">
-    <input type="file" bind:this={fileInput} onchange={handleFileUpload} accept=".sql,.json,.zip" class="hidden" />
-
-    <ExportModal 
-        show={showExportModal} 
-        database={exportDatabaseTarget}
-        table={exportTableTarget}
-        onClose={() => showExportModal = false}
-        onExport={handleExport}
-    />
 
     {#each databases as db}
         <div class="flex flex-col group">
@@ -223,7 +138,6 @@
                     ? 'bg-secondary text-primary font-medium'
                     : ''}"
                 onclick={() => toggleDb(db)}
-                oncontextmenu={(e) => handleDbContextMenu(e, db)}
             >
                 <button class="p-0.5 hover:bg-muted rounded">
                     {#if expandedDbs[db]}
@@ -234,14 +148,6 @@
                 </button>
                 <Database size={16} class="text-primary" />
                 <span class="truncate">{db}</span>
-            </div>
-
-            <!-- Hover Toolbar below database name -->
-            <div class="hidden group-hover:flex items-center gap-3 pl-8 py-1 text-muted-foreground bg-secondary/30 text-xs">
-                <button title="Export" class="hover:text-primary transition-colors flex items-center gap-1" onclick={(e) => { e.stopPropagation(); openExportModal(db); }}><Download size={12}/> Export</button>
-                <button title="Import" class="hover:text-primary transition-colors flex items-center gap-1" onclick={(e) => { e.stopPropagation(); importTarget = { type: 'database', db }; fileInput.click(); }}><Upload size={12}/> Import</button>
-                <button title="Duplicate" class="hover:text-primary transition-colors flex items-center gap-1" onclick={(e) => { e.stopPropagation(); duplicateDatabase(db); }}><Copy size={12}/> Dup</button>
-                <button title="Drop" class="hover:text-destructive transition-colors flex items-center gap-1" onclick={(e) => { e.stopPropagation(); dropDatabase(db); }}><Trash2 size={12}/> Drop</button>
             </div>
 
             {#if expandedDbs[db] && dbTables[db]}
@@ -263,7 +169,6 @@
                                 ? 'bg-secondary text-primary font-medium'
                                 : 'text-muted-foreground hover:text-foreground'}"
                             onclick={() => selectTable(db, table)}
-                            oncontextmenu={(e) => handleTableContextMenu(e, db, table)}
                         >
                             <Table size={14} />
                             <span class="truncate text-xs">{table}</span>
