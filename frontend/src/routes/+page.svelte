@@ -72,7 +72,7 @@
 					{/if}
 				</div>
 
-				<div class="flex justify-center items-center">
+				<div class="flex justify-center items-center w-full min-w-0">
 					{#if appState.currentDatabase || appState.isConnected}
 						<GlobalOptionsMenu />
 					{/if}

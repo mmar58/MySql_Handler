@@ -1,17 +1,16 @@
 <script lang="ts">
     import { appState } from "$lib/state.svelte";
-    import { Settings, Download, Upload, Copy, Trash2, Database, Table2, Server, ChevronDown } from "@lucide/svelte";
+    import { Settings, Download, Upload, Copy, Trash2, Database, Table2, Server, MoreHorizontal } from "@lucide/svelte";
     import { socket } from "$lib/services/socket";
     import { onMount } from "svelte";
     import ExportModal from "./ExportModal.svelte";
     import ImportModal from "./ImportModal.svelte";
 
-    let isOpen = $state(false);
-    let menuRef: HTMLDivElement;
-
     // Modals
     let showExportModal = $state(false);
     let showImportModal = $state(false);
+    let showMoreMenu = $state(false);
+    let moreMenuRef: HTMLDivElement | null = $state(null);
 
     // Derived current level
     let currentLevel = $derived(
@@ -55,10 +54,49 @@
         }
     }
 
+    // Dynamic Actions
+    let actions = $derived.by(() => {
+        const base = [
+            { label: 'Export', icon: Download, class: '', action: () => showExportModal = true },
+            { label: 'Import', icon: Upload, class: '', action: () => showImportModal = true }
+        ];
+
+        if (currentLevel === 'table') {
+            return [
+                ...base,
+                { label: 'Duplicate', icon: Copy, class: '', action: () => duplicateTable(appState.currentDatabase!, appState.currentTable!) },
+                { label: 'Empty', icon: Trash2, class: 'text-destructive hover:bg-destructive/10 hover:text-destructive', action: () => truncateTable(appState.currentDatabase!, appState.currentTable!) },
+                { label: 'Drop', icon: Trash2, class: 'text-destructive hover:bg-destructive/10 hover:text-destructive', action: () => dropTable(appState.currentDatabase!, appState.currentTable!) }
+            ];
+        } else if (currentLevel === 'database') {
+            return [
+                ...base,
+                { label: 'Duplicate', icon: Copy, class: '', action: () => duplicateDatabase(appState.currentDatabase!) },
+                { label: 'Drop', icon: Trash2, class: 'text-destructive hover:bg-destructive/10 hover:text-destructive', action: () => dropDatabase(appState.currentDatabase!) }
+            ];
+        }
+        return base;
+    });
+
+    // Responsive toolbar logic
+    let containerWidth = $state(0);
+    // Assume average button width is ~95px, "more" button is ~40px.
+    let maxVisibleItems = $derived(
+        containerWidth === 0 ? actions.length : // Initial render, show all or rely on overflow hidden
+        Math.max(0, Math.floor((containerWidth - 48) / 95)) // 48px is enough for the "..." button
+    );
+
+    let visibleActions = $derived(
+        actions.length <= Math.floor(containerWidth / 95) ? actions : actions.slice(0, maxVisibleItems)
+    );
+    let overflowActions = $derived(
+        actions.length <= Math.floor(containerWidth / 95) ? [] : actions.slice(maxVisibleItems)
+    );
+
     // Close on click outside
     function handleClickOutside(event: MouseEvent) {
-        if (isOpen && menuRef && !menuRef.contains(event.target as Node)) {
-            isOpen = false;
+        if (showMoreMenu && moreMenuRef && !moreMenuRef.contains(event.target as Node)) {
+            showMoreMenu = false;
         }
     }
 
@@ -68,61 +106,45 @@
     });
 </script>
 
-<div class="relative" bind:this={menuRef}>
-    <button 
-        class="flex items-center gap-2 px-3 py-1.5 bg-secondary/50 hover:bg-secondary text-secondary-foreground rounded-md text-sm font-medium transition-colors"
-        onclick={(e) => { e.stopPropagation(); isOpen = !isOpen; }}
-    >
-        <Settings size={16} />
-        Options
-        <ChevronDown size={14} class="opacity-50" />
-    </button>
+<div class="flex items-center justify-center w-full min-w-0 h-full" bind:clientWidth={containerWidth}>
+    <div class="flex items-center gap-1 overflow-hidden" style="max-width: 100%;">
+        {#each visibleActions as action}
+            <button 
+                class="flex items-center gap-1.5 px-2.5 py-1.5 bg-secondary/30 hover:bg-secondary text-secondary-foreground rounded-md text-xs font-medium transition-colors whitespace-nowrap flex-shrink-0 {action.class}"
+                onclick={(e) => { e.stopPropagation(); action.action(); }}
+                title={action.label}
+            >
+                <action.icon size={14} />
+                <span>{action.label}</span>
+            </button>
+        {/each}
 
-    {#if isOpen}
-        <div class="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-56 bg-card border rounded-md shadow-lg z-50 py-1 text-sm">
-            <div class="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b mb-1 flex items-center gap-2">
-                {#if currentLevel === 'table'}
-                    <Table2 size={14} /> Table: {appState.currentTable}
-                {:else if currentLevel === 'database'}
-                    <Database size={14} /> DB: {appState.currentDatabase}
-                {:else}
-                    <Server size={14} /> Server Actions
+        {#if overflowActions.length > 0}
+            <div class="relative flex-shrink-0" bind:this={moreMenuRef}>
+                <button 
+                    class="flex items-center justify-center w-8 h-7 bg-secondary/30 hover:bg-secondary text-secondary-foreground rounded-md transition-colors"
+                    onclick={(e) => { e.stopPropagation(); showMoreMenu = !showMoreMenu; }}
+                    title="More Options"
+                >
+                    <MoreHorizontal size={14} />
+                </button>
+
+                {#if showMoreMenu}
+                    <div class="absolute top-full right-0 mt-1 w-40 bg-card border rounded-md shadow-lg z-50 py-1 text-sm">
+                        {#each overflowActions as action}
+                            <button 
+                                class="w-full text-left px-3 py-2 hover:bg-muted transition-colors flex items-center gap-2 {action.class}" 
+                                onclick={(e) => { e.stopPropagation(); action.action(); showMoreMenu = false; }}
+                            >
+                                <action.icon size={14} />
+                                <span>{action.label}</span>
+                            </button>
+                        {/each}
+                    </div>
                 {/if}
             </div>
-
-            <button class="w-full text-left px-3 py-2 hover:bg-muted transition-colors flex items-center gap-2" onclick={() => { showExportModal = true; isOpen = false; }}>
-                <Download size={16} /> Export...
-            </button>
-            <button class="w-full text-left px-3 py-2 hover:bg-muted transition-colors flex items-center gap-2" onclick={() => { showImportModal = true; isOpen = false; }}>
-                <Upload size={16} /> Import...
-            </button>
-
-            {#if currentLevel === 'database' || currentLevel === 'table'}
-                <div class="my-1 border-t"></div>
-            {/if}
-
-            {#if currentLevel === 'table'}
-                <button class="w-full text-left px-3 py-2 hover:bg-muted transition-colors flex items-center gap-2" onclick={() => { duplicateTable(appState.currentDatabase!, appState.currentTable!); isOpen = false; }}>
-                    <Copy size={16} /> Duplicate Table
-                </button>
-                <button class="w-full text-left px-3 py-2 hover:bg-muted transition-colors flex items-center gap-2 text-destructive" onclick={() => { truncateTable(appState.currentDatabase!, appState.currentTable!); isOpen = false; }}>
-                    <Trash2 size={16} /> Empty Data
-                </button>
-                <button class="w-full text-left px-3 py-2 hover:bg-destructive/10 transition-colors flex items-center gap-2 text-destructive" onclick={() => { dropTable(appState.currentDatabase!, appState.currentTable!); isOpen = false; }}>
-                    <Trash2 size={16} /> Drop Table
-                </button>
-            {/if}
-
-            {#if currentLevel === 'database'}
-                <button class="w-full text-left px-3 py-2 hover:bg-muted transition-colors flex items-center gap-2" onclick={() => { duplicateDatabase(appState.currentDatabase!); isOpen = false; }}>
-                    <Copy size={16} /> Duplicate Database
-                </button>
-                <button class="w-full text-left px-3 py-2 hover:bg-destructive/10 transition-colors flex items-center gap-2 text-destructive" onclick={() => { dropDatabase(appState.currentDatabase!); isOpen = false; }}>
-                    <Trash2 size={16} /> Drop Database
-                </button>
-            {/if}
-        </div>
-    {/if}
+        {/if}
+    </div>
 </div>
 
 <ExportModal 
