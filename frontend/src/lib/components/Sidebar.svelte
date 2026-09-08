@@ -1,6 +1,7 @@
 <script lang="ts">
     import { Database, Table, ChevronRight, ChevronDown, Trash2, Download, Upload, Copy } from "@lucide/svelte";
     import ContextMenu from "./ContextMenu.svelte";
+    import ExportModal from "./ExportModal.svelte";
     import { appState } from "$lib/state.svelte";
     import { socket } from "$lib/services/socket";
 
@@ -18,8 +19,12 @@
         options: any[];
     }>({ show: false, x: 0, y: 0, options: [] });
 
-    let importTarget = $state<{ type: 'database' | 'table', db: string, table?: string } | null>(null);
     let fileInput: HTMLInputElement;
+    let importTarget = $state<{ type: 'database' | 'table', db: string, table?: string } | null>(null);
+
+    let showExportModal = $state(false);
+    let exportDatabaseTarget = $state("");
+    let exportTableTarget = $state<string | null>(null);
 
     $effect(() => {
         // Request databases on mount
@@ -127,8 +132,7 @@
             x: e.clientX,
             y: e.clientY,
             options: [
-                { label: "Export (SQL)", icon: Download, action: () => exportDatabase(db, 'sql') },
-                { label: "Export (JSON)", icon: Download, action: () => exportDatabase(db, 'json') },
+                { label: "Export", icon: Download, action: () => openExportModal(db) },
                 { label: "Import", icon: Upload, action: () => { importTarget = { type: 'database', db }; fileInput.click(); } },
                 { label: "Duplicate", icon: Copy, action: () => duplicateDatabase(db) },
                 { label: "Drop Database", icon: Trash2, class: "text-destructive", action: () => dropDatabase(db) }
@@ -143,8 +147,7 @@
             x: e.clientX,
             y: e.clientY,
             options: [
-                { label: "Export (SQL)", icon: Download, action: () => exportTable(db, table, 'sql') },
-                { label: "Export (JSON)", icon: Download, action: () => exportTable(db, table, 'json') },
+                { label: "Export", icon: Download, action: () => openExportModal(db, table) },
                 { label: "Import", icon: Upload, action: () => { importTarget = { type: 'table', db, table }; fileInput.click(); } },
                 { label: "Duplicate", icon: Copy, action: () => duplicateTable(db, table) },
                 { label: "Empty (Truncate)", icon: Trash2, action: () => truncateTable(db, table) },
@@ -153,14 +156,26 @@
         };
     }
 
-    function exportDatabase(db: string, format: string) { socket.emit("export_database", { database: db, options: { format } }); }
+    function openExportModal(db: string, table: string | null = null) {
+        exportDatabaseTarget = db;
+        exportTableTarget = table;
+        showExportModal = true;
+    }
+
+    function handleExport(options: any) {
+        if (exportTableTarget) {
+            socket.emit("export_table", { database: exportDatabaseTarget, table: exportTableTarget, options });
+        } else {
+            socket.emit("export_database", { database: exportDatabaseTarget, options });
+        }
+    }
+
     function duplicateDatabase(db: string) { 
         const newName = prompt(`Enter new name for database '${db}':`);
         if (newName && newName !== db) socket.emit("duplicate_database", { database: db, newDatabase: newName });
     }
     function dropDatabase(db: string) { if(confirm(`Drop database '${db}'? This cannot be undone.`)) socket.emit("drop_database", db); }
 
-    function exportTable(db: string, table: string, format: string) { socket.emit("export_table", { database: db, table, options: { format } }); }
     function duplicateTable(db: string, table: string) { 
         const newName = prompt(`Enter new name for table '${table}':`);
         if (newName && newName !== table) socket.emit("duplicate_table", { database: db, table, newTable: newName });
@@ -188,7 +203,16 @@
 </script>
 
 <div class="flex flex-col gap-1 w-full text-sm">
-    <input type="file" bind:this={fileInput} onchange={handleFileUpload} accept=".sql,.json" class="hidden" />
+    <input type="file" bind:this={fileInput} onchange={handleFileUpload} accept=".sql,.json,.zip" class="hidden" />
+
+    <ExportModal 
+        show={showExportModal} 
+        database={exportDatabaseTarget}
+        table={exportTableTarget}
+        onClose={() => showExportModal = false}
+        onExport={handleExport}
+    />
+
     {#each databases as db}
         <div class="flex flex-col group">
             <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -214,7 +238,7 @@
 
             <!-- Hover Toolbar below database name -->
             <div class="hidden group-hover:flex items-center gap-3 pl-8 py-1 text-muted-foreground bg-secondary/30 text-xs">
-                <button title="Export (SQL)" class="hover:text-primary transition-colors flex items-center gap-1" onclick={(e) => { e.stopPropagation(); exportDatabase(db, 'sql'); }}><Download size={12}/> SQL</button>
+                <button title="Export" class="hover:text-primary transition-colors flex items-center gap-1" onclick={(e) => { e.stopPropagation(); openExportModal(db); }}><Download size={12}/> Export</button>
                 <button title="Import" class="hover:text-primary transition-colors flex items-center gap-1" onclick={(e) => { e.stopPropagation(); importTarget = { type: 'database', db }; fileInput.click(); }}><Upload size={12}/> Import</button>
                 <button title="Duplicate" class="hover:text-primary transition-colors flex items-center gap-1" onclick={(e) => { e.stopPropagation(); duplicateDatabase(db); }}><Copy size={12}/> Dup</button>
                 <button title="Drop" class="hover:text-destructive transition-colors flex items-center gap-1" onclick={(e) => { e.stopPropagation(); dropDatabase(db); }}><Trash2 size={12}/> Drop</button>

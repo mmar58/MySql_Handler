@@ -121,3 +121,16 @@ declare global {
         _rowData?: any[];
     }
 }
+
+export interface ExportOptions {
+    includeData?: boolean;
+    selectedTables?: string[] | null;
+    exportMethod?: 'single' | 'split';
+    separateData?: boolean;
+    format?: 'sql' | 'json';
+    selectedRows?: number[] | null;
+    whereClause?: string | null;
+    searchLogic?: string;
+    selectedPKValues?: unknown[] | null;
+    pkColumn?: string | null;
+}
