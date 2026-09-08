@@ -11,11 +11,13 @@
 	import OllamaChat from "$lib/components/OllamaChat.svelte";
 	import NotificationList from "$lib/components/NotificationList.svelte";
 	import GlobalOptionsMenu from "$lib/components/GlobalOptionsMenu.svelte";
+	import CreateDatabaseModal from "$lib/components/CreateDatabaseModal.svelte";
 	import { initSettings } from "$lib/state.svelte";
-	import { Bot, Settings2 } from "@lucide/svelte";
+	import { Bot, Settings2, Plus } from "@lucide/svelte";
 	import { onMount } from "svelte";
 
 	let isSettingsOpen = $state(false);
+	let isCreateDbModalOpen = $state(false);
 	let lastDb = $state(appState.currentDatabase);
 	let lastTable = $state(appState.currentTable);
 
@@ -35,6 +37,7 @@
 <SettingsModal bind:isOpen={isSettingsOpen} />
 <ConnectionManagementModal />
 <NotificationList />
+<CreateDatabaseModal bind:isOpen={isCreateDbModalOpen} />
 
 <div class="flex h-screen w-full overflow-hidden bg-background text-foreground">
 	{#if !appState.isConnected}
@@ -52,7 +55,16 @@
 			<div
 				class="p-4 border-b font-medium flex items-center justify-between"
 			>
-				<span>Databases</span>
+				<div class="flex items-center gap-2">
+					<button
+						class="text-muted-foreground hover:text-foreground hover:bg-secondary rounded p-1 transition-colors"
+						title="Create new database"
+						onclick={() => isCreateDbModalOpen = true}
+					>
+						<Plus class="w-4 h-4" />
+					</button>
+					<span>Databases</span>
+				</div>
 				<button
 					class="text-xs bg-secondary text-secondary-foreground px-2 py-1 rounded hover:opacity-80"
 					>Refresh</button
