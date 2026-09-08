@@ -20,6 +20,7 @@ export const appState = $state({
     theme: 'dark' as 'light' | 'dark',
     sidebarWidth: 250,
     sqlEditor: null as any,
+    savedQuery: "",
     totalRows: 0,
     currentPage: 1,
     pageSize: 50,

@@ -9,7 +9,7 @@
     import { sql } from "@codemirror/lang-sql";
     import { oneDark } from "@codemirror/theme-one-dark";
 
-    let query = $state("");
+    let query = $state(appState.savedQuery || "");
     let results = $state<any[] | null>(null);
     let columns = $state<string[]>([]);
     let error = $state("");
@@ -55,6 +55,7 @@
                 changes: { from: 0, to: editorView.state.doc.length, insert: query }
             });
         }
+        appState.savedQuery = query;
     });
 
     onMount(() => {

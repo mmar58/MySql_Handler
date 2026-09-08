@@ -23,6 +23,9 @@
     let isLoading = $state(false);
     let currentAbortController: AbortController | null = null;
     let chatContainer: HTMLElement | null = $state(null);
+    let isConnectingOllama = $state(false);
+    let ollamaConnectionError = $state(false);
+    let hasAttemptedFetch = $state(false);
 
     // Computed tokens
     let totalTokensUsed = $derived.by(() => {
@@ -99,6 +102,9 @@
     // Model Logic
     async function fetchModels() {
         const url = appState.settings?.ollamaApiUrl || 'http://localhost:11434';
+        isConnectingOllama = true;
+        ollamaConnectionError = false;
+        hasAttemptedFetch = true;
         try {
             const res = await fetch(`${url}/api/tags`);
             if (res.ok) {
@@ -109,9 +115,14 @@
                     appState.settings.ollamaModel = selectedModel;
                 }
                 if (selectedModel) fetchModelInfo(selectedModel);
+            } else {
+                ollamaConnectionError = true;
             }
         } catch (e) {
             console.error("Failed to fetch Ollama models", e);
+            ollamaConnectionError = true;
+        } finally {
+            isConnectingOllama = false;
         }
     }
 
@@ -136,9 +147,11 @@
     }
 
     $effect(() => {
-        if (appState.ollama.isOpen && models.length === 0) {
+        if (appState.ollama.isOpen && models.length === 0 && !hasAttemptedFetch && !isConnectingOllama) {
             fetchModels();
-            if (appState.ollama.sessions.length === 0) createNewSession();
+        }
+        if (appState.ollama.isOpen && appState.ollama.sessions.length === 0) {
+            createNewSession();
         }
     });
 
@@ -471,32 +484,60 @@ You can use tools to run queries, get schema, or write to the editor. If you are
                     </div>
 
                     <div class="flex-1 overflow-y-auto p-4 space-y-4" bind:this={chatContainer}>
-                        {#if currentSession?.messages.length === 0}
+                        {#if ollamaConnectionError}
+                            <div class="h-full flex flex-col items-center justify-center text-muted-foreground space-y-4">
+                                <Bot class="w-12 h-12 opacity-50" />
+                                <p class="text-destructive font-medium">Failed to connect to Ollama</p>
+                                <p class="text-sm opacity-70">Check if Ollama is running at {appState.settings?.ollamaApiUrl || 'http://localhost:11434'}</p>
+                                <button class="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:opacity-90 flex items-center gap-2" onclick={fetchModels} disabled={isConnectingOllama}>
+                                    {#if isConnectingOllama}
+                                        <div class="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-r-transparent"></div> Connecting...
+                                    {:else}
+                                        <Zap class="w-4 h-4" /> Reconnect
+                                    {/if}
+                                </button>
+                            </div>
+                        {:else if hasAttemptedFetch && models.length === 0 && !isConnectingOllama}
+                            <div class="h-full flex flex-col items-center justify-center text-muted-foreground space-y-4">
+                                <Bot class="w-12 h-12 opacity-50" />
+                                <p class="text-muted-foreground font-medium">No models found in Ollama</p>
+                                <p class="text-sm opacity-70">Please pull a model (e.g. `ollama run llama3`) to get started.</p>
+                                <button class="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:opacity-90 flex items-center gap-2" onclick={fetchModels} disabled={isConnectingOllama}>
+                                    {#if isConnectingOllama}
+                                        <div class="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-r-transparent"></div> Refreshing...
+                                    {:else}
+                                        <Zap class="w-4 h-4" /> Refresh Models
+                                    {/if}
+                                </button>
+                            </div>
+                        {:else if currentSession?.messages.length === 0}
                             <div class="h-full flex flex-col items-center justify-center text-muted-foreground opacity-50 space-y-2">
                                 <Bot class="w-12 h-12" />
                                 <p>How can I help with your database?</p>
                             </div>
                         {/if}
                         
-                        {#each currentSession?.messages || [] as msg}
-                            <div class="flex {msg.role === 'user' ? 'justify-end' : 'justify-start'}">
-                                <div class="max-w-[85%] rounded-xl px-4 py-2 {msg.role === 'user' ? 'bg-primary text-primary-foreground' : (msg.role === 'tool' ? 'bg-muted/50 text-xs text-muted-foreground font-mono' : 'bg-muted')}">
-                                    {#if msg.role === 'assistant'}
-                                        <div class="prose prose-sm dark:prose-invert max-w-none">
-                                            {@html msg.content.replace(/\n/g, '<br>')}
-                                        </div>
-                                    {:else if msg.role === 'user' || msg.role === 'system'}
-                                        <div class="whitespace-pre-wrap">{msg.content}</div>
-                                    {/if}
-                                    
-                                    {#if msg.action}
-                                        <div class="mt-2 text-xs opacity-75 font-mono p-2 bg-background/50 rounded">
-                                            {msg.action}
-                                        </div>
-                                    {/if}
+                        {#if !ollamaConnectionError}
+                            {#each currentSession?.messages || [] as msg}
+                                <div class="flex {msg.role === 'user' ? 'justify-end' : 'justify-start'}">
+                                    <div class="max-w-[85%] rounded-xl px-4 py-2 {msg.role === 'user' ? 'bg-primary text-primary-foreground' : (msg.role === 'tool' ? 'bg-muted/50 text-xs text-muted-foreground font-mono' : 'bg-muted')}">
+                                        {#if msg.role === 'assistant'}
+                                            <div class="prose prose-sm dark:prose-invert max-w-none">
+                                                {@html msg.content.replace(/\n/g, '<br>')}
+                                            </div>
+                                        {:else if msg.role === 'user' || msg.role === 'system'}
+                                            <div class="whitespace-pre-wrap">{msg.content}</div>
+                                        {/if}
+                                        
+                                        {#if msg.action}
+                                            <div class="mt-2 text-xs opacity-75 font-mono p-2 bg-background/50 rounded">
+                                                {msg.action}
+                                            </div>
+                                        {/if}
+                                    </div>
                                 </div>
-                            </div>
-                        {/each}
+                            {/each}
+                        {/if}
                     </div>
 
                     <!-- Input Area -->
@@ -524,7 +565,7 @@ You can use tools to run queries, get schema, or write to the editor. If you are
                                     type="text" 
                                     bind:value={currentInput}
                                     placeholder={isLoading ? "Generating..." : "Ask anything..."}
-                                    disabled={isLoading}
+                                    disabled={isLoading || ollamaConnectionError}
                                     class="flex-1 bg-transparent border-none text-sm focus:ring-0 placeholder:text-muted-foreground outline-none"
                                 />
                                 {#if (currentSession?.messages.length ?? 0) > 0}
@@ -532,7 +573,7 @@ You can use tools to run queries, get schema, or write to the editor. If you are
                                         <Trash2 class="w-4 h-4" />
                                     </button>
                                 {/if}
-                                <button type="submit" disabled={!currentInput.trim() || isLoading} class="p-2 bg-primary text-primary-foreground rounded-full hover:opacity-90 disabled:opacity-50 transition-colors">
+                                <button type="submit" disabled={!currentInput.trim() || isLoading || ollamaConnectionError} class="p-2 bg-primary text-primary-foreground rounded-full hover:opacity-90 disabled:opacity-50 transition-colors">
                                     <Send class="w-4 h-4" />
                                 </button>
                             </form>

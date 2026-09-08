@@ -16,6 +16,16 @@
 	import { onMount } from "svelte";
 
 	let isSettingsOpen = $state(false);
+	let lastDb = $state(appState.currentDatabase);
+	let lastTable = $state(appState.currentTable);
+
+	$effect(() => {
+		if (appState.currentDatabase !== lastDb || appState.currentTable !== lastTable) {
+			appState.savedQuery = "";
+			lastDb = appState.currentDatabase;
+			lastTable = appState.currentTable;
+		}
+	});
 
 	onMount(() => {
 		initSettings();
