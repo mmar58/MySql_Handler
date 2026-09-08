@@ -7,6 +7,7 @@ A powerful, real-time web-based database management tool built with modern web t
 [ ![TypeScript](https://img.shields.io/badge/typescript-v5.6%2B-blue.svg)](https://www.typescriptlang.org/)
 [ ![Svelte](https://img.shields.io/badge/svelte-v5%2B-ff3e00.svg)](https://svelte.dev/)
 [ ![Tailwind CSS](https://img.shields.io/badge/tailwindcss-v4%2B-38B2AC.svg)](https://tailwindcss.com/)
+[ ![Docker](https://img.shields.io/badge/docker-mmar58%2Fsmart__database__manager-blue.svg?logo=docker)](https://hub.docker.com/r/mmar58/smart_database_manager)
 
 ## 🚀 Features
 
@@ -116,7 +117,46 @@ mysql_handler/
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### 🐳 Installation via Docker (Recommended)
+
+The easiest way to run the application is using Docker. Our official image is available on Docker Hub: [mmar58/smart_database_manager](https://hub.docker.com/r/mmar58/smart_database_manager).
+
+Create a `docker-compose.yml` file:
+```yaml
+version: '3.8'
+services:
+  db-manager:
+    image: mmar58/smart_database_manager:latest 
+    container_name: db-manager
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - CORS_ORIGIN=*
+      - SESSION_SECRET=change-me-to-a-random-secret
+      - JWT_SECRET_KEY=change-me-to-a-random-jwt-secret
+      - CRYPT_PEPPER=change-me-to-a-random-pepper
+    volumes:
+      - db-manager-data:/app/data
+      - db-manager-backups:/app/backups
+    restart: unless-stopped
+
+volumes:
+  db-manager-data:
+  db-manager-backups:
+```
+
+Then start the application in the background:
+```bash
+docker compose up -d
+```
+You can now access the application at `http://localhost:3000`.
+
+---
+
+### 💻 Manual Installation (Development)
+
+#### Prerequisites
 * **Node.js** v20.0.0 or higher
 * **pnpm** package manager
 * **MySQL** and/or **PostgreSQL** server
