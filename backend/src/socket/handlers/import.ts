@@ -32,4 +32,36 @@ export function registerImportHandlers(
       }
     },
   );
+
+  socket.on(
+    'import_table',
+    async ({
+      database,
+      table,
+      content,
+      type,
+    }: {
+      database: string;
+      table: string;
+      content: string;
+      type: 'json' | 'sql';
+    }) => {
+      const db = activeConnections.get(socket.id);
+      if (!db) return socket.emit('error', { message: 'No active connection' });
+      try {
+        if (type === 'json') {
+          // If we wanted to import JSON into a specific table, we could add a method.
+          // For now, we fallback to the database json importer which assumes the JSON structure has table names.
+          await db.importDatabaseFromJson(database, content);
+        } else {
+          await db.importDatabase(database, content);
+        }
+        socket.emit('table_imported', {
+          message: `Import into table ${table} completed successfully`,
+        });
+      } catch (e) {
+        socket.emit('error', { message: (e as Error).message });
+      }
+    },
+  );
 }

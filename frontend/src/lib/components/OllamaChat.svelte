@@ -4,6 +4,7 @@
     import { MessageSquare, Maximize2, Minimize2, X, Send, Bot, ArrowRightLeft, SquareTerminal, PanelRightClose, PanelRightOpen, Plus, Trash2, StopCircle, Zap } from '@lucide/svelte';
     import { encode } from 'gpt-tokenizer';
     import FloatingQuery from './FloatingQuery.svelte';
+    import { onMount, onDestroy } from "svelte";
 
     // UI state
     let isMinimized = $state(false);
@@ -60,6 +61,31 @@
         document.removeEventListener('mousemove', onDrag);
         document.removeEventListener('mouseup', stopDrag);
     }
+
+    // Global Listeners
+    function handleOllamaSeedPrompt(e: any) {
+        if (e.detail) {
+            appState.ollama.isOpen = true;
+            if (appState.ollama.layout === 'floating') {
+                isMinimized = false;
+            }
+            if (!currentSession) {
+                createNewSession();
+            }
+            currentInput = e.detail;
+            setTimeout(() => {
+                sendMessage();
+            }, 100);
+        }
+    }
+
+    onMount(() => {
+        document.addEventListener('ollama_seed_prompt', handleOllamaSeedPrompt);
+    });
+
+    onDestroy(() => {
+        document.removeEventListener('ollama_seed_prompt', handleOllamaSeedPrompt);
+    });
 
     // Sessions Logic
     let currentSession = $derived(
@@ -339,15 +365,14 @@ You can use tools to run queries, get schema, or write to the editor. If you are
                         saveOllamaState();
 
                         if (functionName === 'write_to_editor') {
+                            document.dispatchEvent(new CustomEvent('ollama_apply_code', { detail: args.query }));
                             floatingQueryString = args.query;
                             if (appState.activeTab === 'query') {
-                                // wait, we don't have direct access to sqlEditor query bindable here globally
-                                // let's always open floating query or switch tab
                                 isFloatingQueryOpen = true;
-                                toolResult = "Query sent to editor overlay.";
+                                toolResult = "Query sent to editor overlay and dispatched to active editors.";
                             } else {
                                 isFloatingQueryOpen = true;
-                                toolResult = "Query sent to floating query window.";
+                                toolResult = "Query sent to floating query window and dispatched to active editors.";
                             }
                         } else if (functionName === 'run_query') {
                             if (!appState.currentDatabase) {

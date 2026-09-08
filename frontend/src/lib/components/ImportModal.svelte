@@ -1,6 +1,6 @@
 <script lang="ts">
     import { appState, addNotification, updateNotification } from "$lib/state.svelte";
-    import { X, Upload, File as FileIcon } from "@lucide/svelte";
+    import { X, Upload, File as FileIcon, AlertCircle, Download, Bot } from "@lucide/svelte";
     import { scale, fade } from "svelte/transition";
     import { socket } from "$lib/services/socket";
 
@@ -33,13 +33,104 @@
         }
     }
 
+    let importError: string | null = null;
+    let importErrorContent: string | null = null;
+
+    function handleOllamaApply(e: any) {
+        if (e.detail && importErrorContent !== null) {
+            importErrorContent = e.detail;
+        }
+    }
+
+    import { onMount, onDestroy } from "svelte";
+
+    onMount(() => {
+        if (typeof document !== 'undefined') {
+            document.addEventListener('ollama_apply_code', handleOllamaApply);
+        }
+    });
+
+    onDestroy(() => {
+        if (typeof document !== 'undefined') {
+            document.removeEventListener('ollama_apply_code', handleOllamaApply);
+        }
+    });
+
+    function downloadModifiedCode() {
+        if (!importErrorContent) return;
+        const blob = new Blob([importErrorContent], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `modified_${selectedFile?.name || 'import.sql'}`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    function askOllamaForHelp() {
+        if (!importError || !importErrorContent) return;
+        const prompt = `I got this error during SQL import:\n\n${importError}\n\nHere is the SQL:\n\n\`\`\`sql\n${importErrorContent.substring(0, 1500)}${importErrorContent.length > 1500 ? '\n... (truncated)' : ''}\n\`\`\`\n\nPlease use the write_to_editor tool to provide the corrected SQL.`;
+        document.dispatchEvent(new CustomEvent('ollama_seed_prompt', { detail: prompt }));
+    }
+
+    function runImport(content: string, type: 'json' | 'sql', notifId: string) {
+        const onSuccess = () => {
+            updateNotification(notifId, { type: 'success', title: `Import Complete`, message: `Imported successfully.`, isIndeterminate: false, autoClose: true });
+            isImporting = false;
+            importError = null;
+            importErrorContent = null;
+            selectedFile = null;
+            onClose();
+            cleanup();
+        };
+
+        const onError = (err: any) => {
+            const errMsg = String(err.message || err);
+            updateNotification(notifId, { type: 'error', title: `Import Failed`, message: errMsg, isIndeterminate: false, autoClose: true });
+            isImporting = false;
+            importError = errMsg;
+            importErrorContent = content;
+            cleanup();
+        };
+        
+        const cleanup = () => {
+            socket.off('database_imported', onSuccess);
+            socket.off('table_imported', onSuccess);
+            socket.off('error', onError);
+        };
+
+        socket.once('database_imported', onSuccess);
+        socket.once('table_imported', onSuccess);
+        socket.once('error', onError);
+
+        if (targetLevel === 'table' && selectedDb && selectedTable) {
+            socket.emit('import_table', { database: selectedDb, table: selectedTable, content, type });
+        } else if (targetLevel === 'database' && selectedDb) {
+            socket.emit('import_database', { database: selectedDb, content, type });
+        } else if (selectedDb) {
+            socket.emit('import_database', { database: selectedDb, content, type });
+        } else {
+            updateNotification(notifId, { type: 'error', message: 'Server level import requires a selected database currently.', isIndeterminate: false, autoClose: true });
+            isImporting = false;
+            cleanup();
+        }
+    }
+
     function handleImport() {
+        if (importErrorContent) {
+            // Re-run modified code
+            isImporting = true;
+            importError = null; // hide error temporarily while running
+            const notifId = addNotification({ type: 'info', title: `Retrying Import`, message: 'Sending modified code...', isIndeterminate: true, autoClose: false });
+            runImport(importErrorContent, selectedFile?.name?.endsWith('.json') ? 'json' : 'sql', notifId);
+            return;
+        }
+
         if (!selectedFile) return;
 
         isImporting = true;
         const reader = new FileReader();
         
-        // Add notification
         const notifId = addNotification({
             type: 'info',
             title: `Importing ${selectedFile.name}`,
@@ -69,41 +160,7 @@
                 progress: undefined
             });
 
-            try {
-                if (targetLevel === 'table' && selectedDb && selectedTable) {
-                    socket.emit('import_table', { database: selectedDb, table: selectedTable, content, type });
-                } else if (targetLevel === 'database' && selectedDb) {
-                    socket.emit('import_database', { database: selectedDb, content, type });
-                } else {
-                    if (selectedDb) {
-                        socket.emit('import_database', { database: selectedDb, content, type });
-                    } else {
-                        updateNotification(notifId, { type: 'error', message: 'Server level import requires a selected database currently.', isIndeterminate: false, autoClose: true });
-                        isImporting = false;
-                        return;
-                    }
-                }
-                
-                updateNotification(notifId, {
-                    type: 'success',
-                    title: `Import Complete`,
-                    message: `${selectedFile.name} imported successfully.`,
-                    isIndeterminate: false,
-                    autoClose: true
-                });
-            } catch (err) {
-                updateNotification(notifId, {
-                    type: 'error',
-                    title: `Import Failed`,
-                    message: String(err),
-                    isIndeterminate: false,
-                    autoClose: true
-                });
-            }
-
-            isImporting = false;
-            onClose();
-            selectedFile = null;
+            runImport(content, type, notifId);
         };
         
         reader.onerror = () => {
@@ -115,7 +172,6 @@
                 autoClose: true
             });
             isImporting = false;
-            onClose();
         };
 
         reader.readAsText(selectedFile);
@@ -168,16 +224,46 @@
                 </div>
             </div>
 
+                {#if importError}
+                    <div class="mt-4 p-4 border border-destructive/50 bg-destructive/10 rounded-md">
+                        <div class="flex items-start gap-2 mb-2 text-destructive font-medium">
+                            <AlertCircle size={20} />
+                            <span>Import Error</span>
+                        </div>
+                        <p class="text-sm text-foreground/80 mb-4">{importError}</p>
+                        
+                        <div class="space-y-2">
+                            <label class="text-xs font-medium text-muted-foreground">SQL Content</label>
+                            <textarea 
+                                class="w-full h-32 bg-background border rounded-md p-2 text-sm font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                bind:value={importErrorContent}
+                            ></textarea>
+                        </div>
+                        
+                        <div class="flex items-center gap-2 mt-4 flex-wrap">
+                            <button class="px-3 py-1.5 text-xs bg-primary/10 hover:bg-primary/20 text-primary font-medium rounded transition-colors flex items-center gap-1" onclick={askOllamaForHelp} disabled={isImporting}>
+                                <Bot size={14} /> Ask Ollama
+                            </button>
+                            <button class="px-3 py-1.5 text-xs bg-secondary hover:bg-secondary/80 text-secondary-foreground font-medium rounded transition-colors flex items-center gap-1" onclick={downloadModifiedCode} disabled={isImporting}>
+                                <Download size={14} /> Download Modified
+                            </button>
+                        </div>
+                    </div>
+                {/if}
             <div class="flex items-center justify-end gap-2 p-4 border-t bg-muted/20">
-                <button class="px-4 py-2 text-sm font-medium hover:bg-muted rounded-md transition-colors" onclick={onClose} disabled={isImporting}>
-                    Cancel
+                <button class="px-4 py-2 text-sm font-medium hover:bg-muted rounded-md transition-colors" onclick={() => {
+                    importError = null;
+                    importErrorContent = null;
+                    onClose();
+                }} disabled={isImporting}>
+                    {importError ? 'Close' : 'Cancel'}
                 </button>
-                <button class="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition-colors disabled:opacity-50 flex items-center gap-2" onclick={handleImport} disabled={!selectedFile || isImporting}>
+                <button class="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition-colors disabled:opacity-50 flex items-center gap-2" onclick={handleImport} disabled={(!selectedFile && !importErrorContent) || isImporting}>
                     {#if isImporting}
                         <div class="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin"></div>
-                        Importing...
+                        {importError ? 'Retrying...' : 'Importing...'}
                     {:else}
-                        Import
+                        {importError ? 'Run Modified Code' : 'Import'}
                     {/if}
                 </button>
             </div>

@@ -58,7 +58,27 @@
         appState.savedQuery = query;
     });
 
+    function handleOllamaApply(e: any) {
+        if (e.detail) {
+            query = e.detail;
+            if (editorView) {
+                editorView.dispatch({
+                    changes: { from: 0, to: editorView.state.doc.length, insert: query }
+                });
+            }
+        }
+    }
+
+    function askOllamaForHelp() {
+        if (!error) return;
+        const prompt = `I got this error when running my query:\n\n${error}\n\nHere is the query:\n\n\`\`\`sql\n${query}\n\`\`\`\n\nPlease use the write_to_editor tool to provide the corrected SQL.`;
+        document.dispatchEvent(new CustomEvent('ollama_seed_prompt', { detail: prompt }));
+    }
+
     onMount(() => {
+        if (typeof document !== 'undefined') {
+            document.addEventListener('ollama_apply_code', handleOllamaApply);
+        }
         socket.on("query_result", (res: any) => {
             isExecuting = false;
             error = "";
@@ -113,6 +133,9 @@
         });
 
         return () => {
+            if (typeof document !== 'undefined') {
+                document.removeEventListener('ollama_apply_code', handleOllamaApply);
+            }
             socket.off("query_result");
             socket.off("query_execution_error");
             socket.off("query_info");
@@ -177,9 +200,12 @@
         <div class="w-1/2 flex flex-col bg-muted/10 overflow-hidden">
             {#if error}
                 <div
-                    class="p-4 m-4 bg-destructive/10 text-destructive border border-destructive/20 rounded-md text-sm font-mono whitespace-pre-wrap"
+                    class="p-4 m-4 bg-destructive/10 text-destructive border border-destructive/20 rounded-md text-sm font-mono whitespace-pre-wrap flex flex-col gap-3"
                 >
-                    {error}
+                    <div>{error}</div>
+                    <button class="px-3 py-1.5 text-xs bg-primary/10 hover:bg-primary/20 text-primary font-medium rounded transition-colors flex items-center gap-1 self-start cursor-pointer" onclick={askOllamaForHelp}>
+                        <Bot size={14} /> Ask Ollama
+                    </button>
                 </div>
             {/if}
 
